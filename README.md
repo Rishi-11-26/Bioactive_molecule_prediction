@@ -198,51 +198,6 @@ Bioactive_molecule_prediction/
 ### Prerequisites
 - Python **3.10** or higher
 - Git installed on your local machine
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/Rishi-11-26/Bioactive_molecule_prediction.git
-cd Bioactive_molecule_prediction/"version 1.2"
-```
-
-### 2. Create and Activate Virtual Environment
-- **Windows (PowerShell)**:
-  ```powershell
-  python -m venv .venv
-  .venv\Scripts\Activate.ps1
-  ```
-- **macOS / Linux**:
-  ```bash
-  python3 -m venv .venv
-  source .venv/bin/activate
-  ```
-
-### 3. Install Dependencies
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 4. Run the Application
-Launch the unified FastAPI and Uvicorn server:
-```bash
-python backend/main.py
-```
-*Alternatively, run with direct uvicorn:*
-```bash
-uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-### 5. Access the Web Application
-Open your web browser and navigate to:
-```
-http://127.0.0.1:8000
-```
-Interactive API documentation (Swagger UI) is available at:
-```
-http://127.0.0.1:8000/docs
-```
-
 ---
 
 ## 📡 API Reference
@@ -309,20 +264,4 @@ The 3D interactive viewer implements the industry-standard CPK color scheme:
 
 ---
 
-## 🎓 Academic Defense & Viva Q&A Cheat Sheet
 
-- **Q1: Why did you choose COX-2 instead of COX-1?**
-  *A*: COX-2 is inducible during inflammation and pain, whereas COX-1 is constitutively expressed for gastric mucosal integrity. Targeting COX-2 minimizes gastrointestinal adverse effects.
-- **Q2: What are Morgan Fingerprints?**
-  *A*: They are circular topological fingerprints based on the Morgan algorithm (equivalent to ECFP). Radius 2 captures atom environments up to 4 bonds away, folded into a 2048-bit vector.
-- **Q3: Why XGBoost over Deep Learning (e.g., GNNs)?**
-  *A*: For tabular bit-vector representations (~2,000–5,000 compounds), XGBoost provides state-of-the-art gradient boosted decision trees that train in seconds, avoid overfitting with regularization ($\gamma, \lambda$), and yield superior ROC-AUC without requiring heavy GPU infrastructure.
-- **Q4: How does 3D coordinate generation work?**
-  *A*: RDKit uses ETKDG (Experimental-Torsion Distance Geometry), adds explicit hydrogens, and optimizes the conformation using the MMFF94 force field before streaming the 3D SDF block to 3Dmol.js.
-
----
-
-## 👥 Contributors & Acknowledgments
-- **Project Team**: Department of Computer Science & Engineering / Bioinformatics.
-- **Dataset**: [ChEMBL Database](https://www.ebi.ac.uk/chembl/) (Target ID: CHEMBL230).
-- **Libraries**: Open-source community of RDKit, FastAPI, XGBoost, and 3Dmol.js.
