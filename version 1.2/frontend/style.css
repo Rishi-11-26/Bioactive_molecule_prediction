@@ -169,12 +169,75 @@ textarea:focus { border-color: var(--primary); }
 .prop-item span { color: var(--text-muted); }
 .prop-item strong { color: var(--text); word-break: break-word; text-align: right; max-width: 65%; }
 
-.mol-svg-container {
-  border: 1px solid var(--border); border-radius: 8px;
-  background: #ffffff; min-height: 180px; display: flex;
-  align-items: center; justify-content: center; overflow: hidden;
+/* ─── 3D Molecular Viewer (3Dmol.js) ───────────────────────── */
+.mol-3d-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+  margin-top: 14px;
 }
-.mol-svg-container svg { max-width: 100%; height: auto; display: block; }
+.mol-3d-container {
+  width: 100%;
+  height: 280px;
+  position: relative;
+  background: #ffffff;
+}
+.mol-3d-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.mol-3d-controls .control-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── 3D Atom Color Legend ────────────────────────────────── */
+.mol-3d-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 9px 12px;
+  background: #f1f5f9;
+  border-top: 1px solid var(--border);
+  font-size: 0.76rem;
+  color: #334155;
+}
+.legend-header {
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+}
+.legend-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 500;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+.dot-c { background: #909090; }  /* Carbon: Grey/Ash */
+.dot-h { background: #ffffff; }  /* Hydrogen: White */
+.dot-o { background: #ef4444; }  /* Oxygen: Red */
+.dot-n { background: #3b82f6; }  /* Nitrogen: Blue */
+.dot-s { background: #eab308; }  /* Sulfur: Yellow */
+.dot-x { background: #22c55e; }  /* Halogens (F, Cl): Green */
 
 /* ─── Batch Virtual Screening ─────────────────────────────── */
 .upload-dropzone {

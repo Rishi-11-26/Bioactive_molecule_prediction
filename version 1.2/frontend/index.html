@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BioPredict — Bioactive Molecule Prediction</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- 3Dmol.js: Lightweight 3D Molecular Visualization via WebGL -->
+  <script src="https://3dmol.org/build/3Dmol-min.js"></script>
 </head>
 <body>
 
@@ -64,17 +66,17 @@
       <div class="section-header">
         <span class="section-tag">Inference Workspace</span>
         <h2>Single Molecule Prediction</h2>
-        <p>Enter a chemical SMILES string to predict bioactivity and generate its 2D chemical structure.</p>
+        <p>Enter a molecule name or chemical SMILES string to predict bioactivity and inspect in 3D.</p>
       </div>
 
       <div class="grid-2col">
         <!-- Input Form -->
         <div class="card">
           <h3 class="card-title">Chemical Input</h3>
-          <p class="card-sub">Input the molecule structure as a standard SMILES string.</p>
+          <p class="card-sub">Enter a common drug name (e.g., Aspirin, Celecoxib) or a chemical SMILES notation.</p>
 
-          <label for="smilesInput" class="form-label">SMILES Notation</label>
-          <textarea id="smilesInput" placeholder="e.g., CC(=O)Oc1ccccc1C(=O)O" rows="3"></textarea>
+          <label for="smilesInput" class="form-label">Molecule Name or SMILES Notation</label>
+          <textarea id="smilesInput" placeholder="e.g., Aspirin, Celecoxib, Ibuprofen, or CC(=O)Oc1ccccc1C(=O)O" rows="3"></textarea>
           
           <div class="input-tools">
             <button type="button" class="btn-text" id="btnExample">Load Example</button>
@@ -87,10 +89,9 @@
           </button>
         </div>
 
-        <!-- Prediction Result & 2D Structure -->
+        <!-- Prediction Result & 3D Structure -->
         <div class="card result-card">
-          <h3 class="card-title">Prediction &amp; 2D Structure</h3>
-          <p class="card-sub">Output computed by the trained model and RDKit.</p>
+          <h3 class="card-title">Prediction &amp; 3D Molecular Structure</h3>
 
           <!-- Empty State -->
           <div class="state-empty" id="resultEmpty">
@@ -98,13 +99,13 @@
               <circle cx="12" cy="12" r="9"/>
               <path d="M12 7v5l3 3"/>
             </svg>
-            <p>Enter a SMILES string and click <strong>Predict Bioactivity</strong>.</p>
+            <p>Enter a molecule name or SMILES string, then click <strong>Predict Bioactivity</strong>.</p>
           </div>
 
           <!-- Loading State -->
           <div class="state-loading" id="resultLoading">
             <div class="spinner"></div>
-            <p>Extracting 2048-bit Morgan Fingerprint &amp; Predicting...</p>
+            <p>Embedding 3D Coordinates &amp; Predicting Bioactivity...</p>
           </div>
 
           <!-- Result Content -->
@@ -133,8 +134,24 @@
               </div>
             </div>
 
-            <!-- 2D Structure Render -->
-            <div class="mol-svg-container" id="molSvg"></div>
+            <!-- 3D Ball-and-Stick Molecular Viewer -->
+            <div class="mol-3d-wrapper">
+              <div class="mol-3d-container" id="mol3dContainer"></div>
+              <div class="mol-3d-controls">
+                <span class="control-hint">🖱️ Left-click: rotate &middot; Scroll: zoom &middot; Right-click: pan</span>
+                <button type="button" class="btn-text" id="btnToggleSpin">Pause Rotation</button>
+              </div>
+              <!-- Atom Color Code Legend -->
+              <div class="mol-3d-legend">
+                <span class="legend-header">Atom Colors:</span>
+                <span class="legend-tag"><span class="dot dot-c"></span> Carbon (C): Grey</span>
+                <span class="legend-tag"><span class="dot dot-h"></span> Hydrogen (H): White</span>
+                <span class="legend-tag"><span class="dot dot-o"></span> Oxygen (O): Red</span>
+                <span class="legend-tag"><span class="dot dot-n"></span> Nitrogen (N): Blue</span>
+                <span class="legend-tag"><span class="dot dot-s"></span> Sulfur (S): Yellow</span>
+                <span class="legend-tag"><span class="dot dot-x"></span> Halogens (F, Cl): Green</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

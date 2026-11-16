@@ -1,6 +1,7 @@
 /* ============================================================
    BioPredict — script.js
-   Clean, Readable Vanilla JavaScript for Undergrad Viva & Defense
+   Full-Stack Inference, 3D Molecular Viewer & Batch Screening
+   Clean, Minimal, Beginner-Friendly Vanilla JavaScript
    ============================================================ */
 
 // Dynamic Backend URL: auto-detects localhost or deployed origin
@@ -8,44 +9,128 @@ const API_BASE = (window.location.protocol === "file:")
   ? "http://127.0.0.1:8000"
   : window.location.origin;
 
-// Curated example molecules
+// Curated example molecules (both standard drug names and chemical SMILES strings)
 const EXAMPLES = [
-  { name: "Aspirin", smiles: "CC(=O)Oc1ccccc1C(=O)O" },
-  { name: "Ibuprofen", smiles: "CC(C)Cc1ccc(cc1)C(C)C(=O)O" },
-  { name: "Celecoxib analog", smiles: "CS(=O)(=O)c1ccc(-c2csc(CC(=O)O)c2-c2ccc(F)cc2)cc1" },
-  { name: "Ethanol", smiles: "CCO" },
-  { name: "Benzene", smiles: "c1ccccc1" }
+  // ── Standard Molecule / Drug Names ──
+  "Aspirin",
+  "Celecoxib",
+  "Ibuprofen",
+  "Paracetamol",
+  "Diclofenac",
+  "Naproxen",
+  "Meloxicam",
+  "Caffeine",
+
+  // ── Chemical SMILES Strings ──
+  "Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1",  // Celecoxib (Potent COX-2 Inhibitor)
+  "CC(=O)Oc1ccccc1C(=O)O",                                // Aspirin (Acetylsalicylic Acid)
+  "CC(C)Cc1ccc(cc1)C(C)C(=O)O",                           // Ibuprofen
+  "O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl",                       // Diclofenac
+  "O=S(=O)(c1ccc(C2=C(c3ccccc3)C(=O)OC2)cc1)C",           // Rofecoxib (Vioxx)
+  "Cc1nc(NC(=O)c2c(O)c3ccccc3s(=O)(=O)n2C)cs1",           // Meloxicam
+  "COc1ccc2cc(C(C)C(=O)O)ccc2c1",                          // Naproxen
+  "Cn1cnc2c1c(=O)n(C)c(=O)n2C",                            // Caffeine
+  "c1ccccc1",                                              // Benzene
+  "CCO"                                                    // Ethanol
 ];
+
 let exampleIdx = 0;
+let viewer3D = null;
+let isSpinning = true;
 let batchDataCache = null;
 
-// ─── Initialization on DOM Load ──────────────────────────────
-document.addEventListener("DOMContentLoaded", () => {
+// ─── App Startup ─────────────────────────────────────────────
+function startApp() {
   initHealthCheck();
   initSinglePrediction();
   initBatchPrediction();
   loadBenchmarkMetrics();
-});
+}
 
-// ─── 1. Health Check ─────────────────────────────────────────
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startApp);
+} else {
+  startApp();
+}
+
+// Periodic background health check (every 10s)
+setInterval(initHealthCheck, 10000);
+
+// ─── 1. Backend Health Check ─────────────────────────────────
 async function initHealthCheck() {
   const dot = document.getElementById("statusDot");
   const text = document.getElementById("statusText");
   try {
-    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) {
-      dot.className = "status-dot online";
-      text.textContent = "Online";
-    } else {
-      throw new Error();
+    let fetchOpts = {};
+    if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+      fetchOpts.signal = AbortSignal.timeout(4000);
     }
-  } catch {
-    dot.className = "status-dot offline";
-    text.textContent = "Offline";
+    const res = await fetch(`${API_BASE}/health`, fetchOpts);
+    if (res.ok) {
+      if (dot) dot.className = "status-dot online";
+      if (text) text.textContent = "Online";
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (err) {
+    if (dot) dot.className = "status-dot offline";
+    if (text) text.textContent = "Offline";
   }
 }
 
-// ─── 2. Single Molecule Prediction ───────────────────────────
+// ─── 2. 3D Molecular Viewer (3Dmol.js) ───────────────────────
+function render3DMolecule(mol3dBlock) {
+  const container = document.getElementById("mol3dContainer");
+  if (!container) return;
+
+  if (!window.$3Dmol) {
+    container.innerHTML = "<p style='padding:20px; text-align:center; color:#64748b;'>3Dmol.js loading... Please check internet connection.</p>";
+    return;
+  }
+
+  // Clear previous viewer instance
+  container.innerHTML = "";
+  viewer3D = $3Dmol.createViewer(container, { backgroundColor: "white" });
+
+  if (!mol3dBlock || !mol3dBlock.trim()) {
+    container.innerHTML = "<p style='padding:20px; text-align:center; color:#64748b;'>3D coordinate model not available for this compound.</p>";
+    return;
+  }
+
+  // Add 3D molecular coordinates in MOL/SDF format
+  viewer3D.addModel(mol3dBlock, "sdf");
+
+  // Ball-and-Stick Styling:
+  // - Spheres: Atoms (Jmol/CPK color code)
+  // - Sticks: Chemical Bonds
+  viewer3D.setStyle({}, {
+    stick: { radius: 0.15, colorscheme: "Jmol" },
+    sphere: { scale: 0.28, colorscheme: "Jmol" }
+  });
+
+  viewer3D.zoomTo();
+  viewer3D.render();
+
+  // Subtle auto-rotation
+  isSpinning = true;
+  viewer3D.spin(true);
+
+  const btnToggleSpin = document.getElementById("btnToggleSpin");
+  if (btnToggleSpin) {
+    btnToggleSpin.textContent = "Pause Rotation";
+  }
+
+  // Pause rotation on mouse drag / interaction
+  container.onmousedown = () => {
+    if (viewer3D && isSpinning) {
+      viewer3D.spin(false);
+      isSpinning = false;
+      if (btnToggleSpin) btnToggleSpin.textContent = "Resume Rotation";
+    }
+  };
+}
+
+// ─── 3. Single Molecule Prediction ───────────────────────────
 function initSinglePrediction() {
   const smilesInput = document.getElementById("smilesInput");
   const btnPredict  = document.getElementById("btnPredict");
@@ -53,98 +138,127 @@ function initSinglePrediction() {
   const btnClear    = document.getElementById("btnClear");
   const errorBox    = document.getElementById("inputError");
 
-  const stateEmpty   = document.getElementById("resultEmpty");
-  const stateLoading = document.getElementById("resultLoading");
-  const resultBody   = document.getElementById("resultBody");
+  const stateEmpty    = document.getElementById("resultEmpty");
+  const stateLoading  = document.getElementById("resultLoading");
+  const resultBody    = document.getElementById("resultBody");
+  const btnToggleSpin = document.getElementById("btnToggleSpin");
 
-  // Load Example
-  btnExample.addEventListener("click", () => {
-    const ex = EXAMPLES[exampleIdx % EXAMPLES.length];
-    smilesInput.value = ex.smiles;
-    exampleIdx++;
-    errorBox.classList.remove("visible");
-  });
+  if (!smilesInput || !btnPredict) return;
 
-  // Clear
-  btnClear.addEventListener("click", () => {
-    smilesInput.value = "";
-    errorBox.classList.remove("visible");
-    stateEmpty.style.display = "flex";
-    stateLoading.style.display = "none";
-    resultBody.style.display = "none";
-  });
+  // Load Example (cycles through drug names & SMILES)
+  if (btnExample) {
+    btnExample.addEventListener("click", () => {
+      const ex = EXAMPLES[exampleIdx % EXAMPLES.length];
+      exampleIdx++;
+      smilesInput.value = ex;
+      if (errorBox) errorBox.classList.remove("visible");
+    });
+  }
 
-  // Predict
+  // Clear Input & Results
+  if (btnClear) {
+    btnClear.addEventListener("click", () => {
+      smilesInput.value = "";
+      if (errorBox) errorBox.classList.remove("visible");
+      if (stateEmpty) stateEmpty.style.display = "flex";
+      if (stateLoading) stateLoading.style.display = "none";
+      if (resultBody) resultBody.style.display = "none";
+      if (viewer3D) viewer3D.clear();
+    });
+  }
+
+  // Toggle 3D Auto-Rotation
+  if (btnToggleSpin) {
+    btnToggleSpin.addEventListener("click", () => {
+      if (!viewer3D) return;
+      isSpinning = !isSpinning;
+      viewer3D.spin(isSpinning);
+      btnToggleSpin.textContent = isSpinning ? "Pause Rotation" : "Resume Rotation";
+    });
+  }
+
+  // Predict Bioactivity
   btnPredict.addEventListener("click", async () => {
-    const smiles = smilesInput.value.trim();
-    if (!smiles) {
-      errorBox.textContent = "Please enter a valid SMILES string.";
-      errorBox.classList.add("visible");
+    const inputVal = smilesInput.value.trim();
+    if (!inputVal) {
+      if (errorBox) {
+        errorBox.textContent = "Please enter a molecule name or SMILES string.";
+        errorBox.classList.add("visible");
+      }
       return;
     }
-    errorBox.classList.remove("visible");
+    if (errorBox) errorBox.classList.remove("visible");
 
-    // Show Loading
-    stateEmpty.style.display = "none";
-    stateLoading.style.display = "flex";
-    resultBody.style.display = "none";
+    // Display Loading State
+    if (stateEmpty) stateEmpty.style.display = "none";
+    if (stateLoading) stateLoading.style.display = "flex";
+    if (resultBody) resultBody.style.display = "none";
     btnPredict.disabled = true;
 
     try {
-      // Concurrently run inference and 2D structure generation
-      const [predRes, vizRes] = await Promise.all([
-        fetch(`${API_BASE}/predict`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ smiles })
-        }).then(r => r.json()),
+      const res = await fetch(`${API_BASE}/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ smiles: inputVal })
+      });
 
-        fetch(`${API_BASE}/visualize`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ smiles, width: 380, height: 220 })
-        }).then(r => r.json()).catch(() => null)
-      ]);
-
-      if (predRes.detail) throw new Error(predRes.detail);
-
-      // Display Prediction
-      const isActive = predRes.prediction === "Active";
-      const badge = document.getElementById("predBadge");
-      badge.textContent = predRes.prediction;
-      badge.className = `badge ${isActive ? 'badge-active' : 'badge-inactive'}`;
-
-      document.getElementById("predScore").textContent = 
-        predRes.score !== null ? `Confidence: ${(predRes.score * 100).toFixed(1)}%` : "";
-      
-      const molNameEl = document.getElementById("resMolName");
-      if (molNameEl) {
-        molNameEl.textContent = predRes.molecule_name || "Unknown Compound";
+      const data = await res.json();
+      if (!res.ok || data.detail) {
+        throw new Error(data.detail || `Server error (${res.status})`);
       }
 
-      document.getElementById("resModel").textContent = predRes.model;
-      document.getElementById("resMW").textContent = 
-        predRes.mol_info?.mol_weight ? `${predRes.mol_info.mol_weight} g/mol` : "N/A";
-      document.getElementById("resSmiles").textContent = predRes.smiles;
+      // 1. Prediction Label & Activity Badge
+      const isActive = data.prediction === "Active";
+      const badge = document.getElementById("predBadge");
+      if (badge) {
+        badge.textContent = data.prediction;
+        badge.className = `badge ${isActive ? 'badge-active' : 'badge-inactive'}`;
+      }
 
-      // Render 2D SVG
-      const molSvg = document.getElementById("molSvg");
-      molSvg.innerHTML = vizRes?.svg || "<p style='color:#64748b;'>Structure display not available</p>";
+      // 2. Confidence Score
+      const scoreEl = document.getElementById("predScore");
+      if (scoreEl) {
+        scoreEl.textContent = (data.score !== null && data.score !== undefined)
+          ? `Confidence: ${(data.score * 100).toFixed(1)}%`
+          : "";
+      }
 
-      stateLoading.style.display = "none";
-      resultBody.style.display = "block";
+      // 3. Molecule Properties
+      const nameEl = document.getElementById("resMolName");
+      if (nameEl) nameEl.textContent = data.molecule_name || inputVal;
+
+      const modelEl = document.getElementById("resModel");
+      if (modelEl) modelEl.textContent = data.model || "XGBoost";
+
+      const mwEl = document.getElementById("resMW");
+      if (mwEl) {
+        mwEl.textContent = data.mol_info?.mol_weight
+          ? `${data.mol_info.mol_weight} g/mol`
+          : "N/A";
+      }
+
+      const smilesEl = document.getElementById("resSmiles");
+      if (smilesEl) smilesEl.textContent = data.smiles || "-";
+
+      // 4. Render 3D Model
+      render3DMolecule(data.mol_3d);
+
+      if (stateLoading) stateLoading.style.display = "none";
+      if (resultBody) resultBody.style.display = "block";
     } catch (err) {
-      stateLoading.style.display = "none";
-      stateEmpty.style.display = "flex";
-      errorBox.textContent = err.message || "Failed to predict molecule.";
-      errorBox.classList.add("visible");
+      if (stateLoading) stateLoading.style.display = "none";
+      if (stateEmpty) stateEmpty.style.display = "flex";
+      if (errorBox) {
+        errorBox.textContent = err.message || "Failed to predict molecule.";
+        errorBox.classList.add("visible");
+      }
     } finally {
       btnPredict.disabled = false;
     }
   });
 }
 
-// ─── 3. Batch Screening (CSV) ────────────────────────────────
+// ─── 4. Batch Screening (CSV) ────────────────────────────────
 function initBatchPrediction() {
   const dropZone       = document.getElementById("dropZone");
   const fileInput      = document.getElementById("batchFileInput");
@@ -235,7 +349,7 @@ function initBatchPrediction() {
 
       batchResults.style.display = "block";
     } catch (err) {
-      batchError.textContent = err.message;
+      batchError.textContent = err.message || "Failed to process batch screening.";
       batchError.classList.add("visible");
     } finally {
       btnRunBatch.disabled = false;
@@ -243,7 +357,7 @@ function initBatchPrediction() {
     }
   });
 
-  // Download CSV
+  // Download CSV Results
   btnDownload.addEventListener("click", () => {
     if (!batchDataCache?.results) return;
     const csvRows = [
@@ -260,9 +374,10 @@ function initBatchPrediction() {
   });
 }
 
-// ─── 4. Model Benchmark (Cross-Validation Table) ─────────────
+// ─── 5. Model Benchmark (Cross-Validation Table) ─────────────
 async function loadBenchmarkMetrics() {
   const tbody = document.getElementById("cvMetricsBody");
+  if (!tbody) return;
   try {
     const res = await fetch(`${API_BASE}/models`);
     const data = await res.json();
@@ -288,7 +403,7 @@ async function loadBenchmarkMetrics() {
   }
 }
 
-// ─── Simple Helper ────────────────────────────────────────────
+// ─── Simple Helper ───────────────────────────────────────────
 function escapeHtml(str) {
   if (!str) return "";
   return String(str)

@@ -319,6 +319,80 @@ def resolve_molecule_name(smiles: str, user_name: Optional[str] = None, mol=None
 
     return "Molecule"
 
+
+# ─────────────────────────────────────────────────────────────
+# Helper: Molecule Name / SMILES Bidirectional Resolver
+# ─────────────────────────────────────────────────────────────
+NAME_TO_SMILES = {}
+for _smi, _name in KNOWN_MOLECULES.items():
+    NAME_TO_SMILES[_name.lower().strip()] = _smi
+
+# Common aliases and generic brands
+NAME_TO_SMILES["paracetamol"] = "CC(=O)Nc1ccc(O)cc1"
+NAME_TO_SMILES["tylenol"]     = "CC(=O)Nc1ccc(O)cc1"
+NAME_TO_SMILES["advil"]       = "CC(C)Cc1ccc(cc1)C(C)C(=O)O"
+NAME_TO_SMILES["motrin"]      = "CC(C)Cc1ccc(cc1)C(C)C(=O)O"
+NAME_TO_SMILES["celebrex"]    = "Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1"
+NAME_TO_SMILES["vioxx"]       = "O=S(=O)(c1ccc(C2=C(c3ccccc3)C(=O)OC2)cc1)C"
+NAME_TO_SMILES["bextra"]      = "Cc1c(c2ccccc2)onc1-c1ccc(S(N)(=O)=O)cc1"
+NAME_TO_SMILES["arcoxia"]     = "Cc1ccc(-c2ccc(C)c(c3ccc(S(C)(=O)=O)cc3)n2)cn1"
+NAME_TO_SMILES["mobic"]       = "Cc1nc(NC(=O)c2c(O)c3ccccc3s(=O)(=O)n2C)cs1"
+NAME_TO_SMILES["voltaren"]    = "O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl"
+NAME_TO_SMILES["aleve"]       = "COc1ccc2cc(C(C)C(=O)O)ccc2c1"
+
+try:
+    if os.path.exists(SAMPLE_PATH):
+        with open(SAMPLE_PATH, mode="r", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                _smi = (row.get("smiles") or "").strip()
+                _name = (row.get("molecule_name") or "").strip()
+                if _smi and _name:
+                    NAME_TO_SMILES[_name.lower().strip()] = _smi
+except Exception:
+    pass
+
+
+def resolve_input_to_smiles(input_text: str):
+    """
+    Resolves user input which can be either a valid SMILES string OR a molecule name.
+    Returns (clean_smiles, resolved_name). If cannot resolve, returns (None, None).
+    """
+    text = input_text.strip()
+    if not text:
+        return None, None
+
+    # 1. Direct SMILES validation via RDKit
+    mol = Chem.MolFromSmiles(text)
+    if mol is not None:
+        name = resolve_molecule_name(text, None, mol)
+        return text, name
+
+    # 2. Local dictionary lookup (case-insensitive)
+    low_text = text.lower()
+    if low_text in NAME_TO_SMILES:
+        smi = NAME_TO_SMILES[low_text]
+        name = CANONICAL_NAME_MAP.get(smi, text.title())
+        return smi, name
+
+    # 3. Fast PubChem compound name query
+    try:
+        quoted = urllib.parse.quote(text, safe="")
+        url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quoted}/property/CanonicalSMILES,Title/JSON"
+        req = urllib.request.Request(url, headers={"User-Agent": "BioPredict/2.0"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode())
+            props = data.get("PropertyTable", {}).get("Properties", [{}])[0]
+            pubchem_smiles = props.get("CanonicalSMILES")
+            pubchem_title = props.get("Title") or text.title()
+            if pubchem_smiles and Chem.MolFromSmiles(pubchem_smiles):
+                NAME_TO_SMILES[low_text] = pubchem_smiles
+                return pubchem_smiles, pubchem_title
+    except Exception:
+        pass
+
+    return None, None
+
+
 # ─────────────────────────────────────────────────────────────
 # API Routes
 # ─────────────────────────────────────────────────────────────
@@ -352,29 +426,60 @@ def health():
 def predict(request: PredictRequest):
     """
     Single molecule prediction.
-
-    1. Validates the SMILES string is not empty.
-    2. Converts SMILES to Morgan fingerprint using RDKit.
-    3. Runs the saved best model (XGBoost) to predict Active/Inactive.
-    4. Returns prediction, score, and molecule info.
+    Accepts either a chemical SMILES string OR a molecule name (e.g., Aspirin, Celecoxib).
     """
-    clean_smiles = request.smiles.strip()
-    if not clean_smiles:
-        raise HTTPException(status_code=422, detail="SMILES string cannot be empty.")
+    input_str = request.smiles.strip()
+    if not input_str:
+        raise HTTPException(status_code=422, detail="Please enter a molecule name or SMILES string.")
 
+    # 1. Resolve input: supports either SMILES or molecule name
+    clean_smiles, molecule_name = resolve_input_to_smiles(input_str)
+    if not clean_smiles:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not resolve structure for '{input_str}'. Please enter a valid SMILES string or standard molecule name (e.g., Aspirin, Celecoxib)."
+        )
+
+    # 2. Convert SMILES to 2048-bit Morgan fingerprint
     features, mol = smiles_to_fingerprint(clean_smiles)
     if features is None:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid SMILES: '{clean_smiles}'. RDKit could not parse this structure."
+            detail=f"Invalid chemical structure: RDKit could not parse '{clean_smiles}'."
         )
 
-    molecule_name = resolve_molecule_name(clean_smiles, request.name, mol)
+    if request.name and request.name.strip():
+        molecule_name = request.name.strip()
+    elif not molecule_name:
+        molecule_name = resolve_molecule_name(clean_smiles, None, mol)
 
+    # 3. Model inference using XGBoost
     try:
         pred_label, score, score_type = run_prediction(features)
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Inference error: {str(err)}")
+
+    # Generate 3D coordinates for 3Dmol.js viewer
+    mol_3d = ""
+    try:
+        # Add hydrogen atoms for realistic 3D representation
+        mol_h = Chem.AddHs(mol)
+        # Embed 3D coordinates with fixed seed for reproducibility
+        embed_result = AllChem.EmbedMolecule(mol_h, randomSeed=42)
+        if embed_result != 0:
+            AllChem.EmbedMolecule(mol_h, useRandomCoords=True)
+        # Optimize 3D geometry using MMFF force field
+        try:
+            AllChem.MMFFOptimizeMolecule(mol_h, maxIters=50)
+        except Exception:
+            pass
+        mol_3d = Chem.MolToMolBlock(mol_h)
+    except Exception as e:
+        print(f"[WARN] 3D coordinates generation failed: {e}")
+        try:
+            mol_3d = Chem.MolToMolBlock(mol)
+        except Exception:
+            mol_3d = ""
 
     # Basic molecule info
     mol_info = {}
@@ -398,6 +503,7 @@ def predict(request: PredictRequest):
         "smiles":        clean_smiles,
         "molecule_name": molecule_name,
         "mol_info":      mol_info,
+        "mol_3d":        mol_3d,
     }
 
 
@@ -644,3 +750,22 @@ def get_presentation():
 # Mount the frontend SPA at /app
 if os.path.exists(FRONTEND_DIR):
     app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    import sys
+    if PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, PROJECT_ROOT)
+
+    port = int(os.environ.get("PORT", 8000))
+    host = os.environ.get("HOST", "0.0.0.0")
+
+    print("=" * 65)
+    print("  🚀 Starting BioPredict Web Platform...")
+    print(f"  🌐 Web Interface : http://127.0.0.1:{port}/app/")
+    print(f"  📚 Swagger Docs   : http://127.0.0.1:{port}/docs")
+    print("  💊 Target Enzyme  : Cyclooxygenase-2 (COX-2)")
+    print("  🧠 Model Engine   : XGBoost Classifier (Morgan 2048-bit)")
+    print("=" * 65)
+    uvicorn.run("backend.main:app", host=host, port=port)
