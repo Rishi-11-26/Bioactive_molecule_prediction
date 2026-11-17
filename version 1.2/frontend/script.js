@@ -233,9 +233,9 @@ function when3DmolReady(cb, attempts = 0) {
 }
 
 function styleFor(kind) {
-  if (kind === "stick") return { stick: { radius: 0.2, colorscheme: "Jmol" } };
-  if (kind === "sphere") return { sphere: { scale: 1.0, colorscheme: "Jmol" } };
-  return { stick: { radius: 0.16, colorscheme: "Jmol" }, sphere: { scale: 0.3, colorscheme: "Jmol" } };
+  if (kind === "stick") return { stick: { radius: 0.16, colorscheme: "Jmol" } };
+  if (kind === "sphere") return { sphere: { scale: 0.8, colorscheme: "Jmol" } };
+  return { stick: { radius: 0.13, colorscheme: "Jmol" }, sphere: { scale: 0.24, colorscheme: "Jmol" } };
 }
 
 let isViewer3DVisible = true;
@@ -447,41 +447,27 @@ function initHeroDynamicMolecules() {
     // Sort atoms by Z for painter's algorithm
     const sortedAtoms = [...projected].sort((a, b) => a.z - b.z);
 
-    // Draw atoms
+    // Draw atoms with ultra-fast zero-allocation vector shading
     sortedAtoms.forEach(a => {
       ctx.save();
-      // Outer glow
-      const glowGrad = ctx.createRadialGradient(a.x2d, a.y2d, a.r * 0.2, a.x2d, a.y2d, a.r * 2.0);
-      glowGrad.addColorStop(0, a.color);
-      glowGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
-      ctx.fillStyle = glowGrad;
-      ctx.beginPath();
-      ctx.arc(a.x2d, a.y2d, a.r * 2.0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Sphere core
-      const coreGrad = ctx.createRadialGradient(
-        a.x2d - a.r * 0.3, a.y2d - a.r * 0.3, a.r * 0.1,
-        a.x2d, a.y2d, a.r
-      );
-      coreGrad.addColorStop(0, "#ffffff");
-      coreGrad.addColorStop(0.5, a.color);
-      coreGrad.addColorStop(1, "#0f172a");
-
+      // Main atom sphere
       ctx.beginPath();
       ctx.arc(a.x2d, a.y2d, a.r, 0, Math.PI * 2);
-      ctx.fillStyle = coreGrad;
-      ctx.shadowColor = a.color;
-      ctx.shadowBlur = 6 * a.scale;
+      ctx.fillStyle = a.color;
+      ctx.fill();
+
+      // Top-left 3D specular highlight
+      ctx.beginPath();
+      ctx.arc(a.x2d - a.r * 0.28, a.y2d - a.r * 0.28, a.r * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
       ctx.fill();
 
       // Atom symbol text
       if (a.r > 5) {
         ctx.fillStyle = "#ffffff";
-        ctx.font = `700 ${Math.max(8, Math.round(a.r * 1.05))}px Plus Jakarta Sans, sans-serif`;
+        ctx.font = `700 ${Math.max(8, Math.round(a.r * 1.02))}px Plus Jakarta Sans, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.shadowBlur = 0;
         ctx.fillText(a.sym, a.x2d, a.y2d + 0.5);
       }
       ctx.restore();
@@ -619,12 +605,12 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     }
 
     viewer3D.zoomTo();
-    viewer3D.zoom(1.1);
+    viewer3D.zoom(0.72);
     viewer3D.render();
     if (emptyEl) emptyEl.hidden = true;
     if (tools) tools.hidden = false;
     if (legend) legend.hidden = false;
-    setSpin(!prefersReducedMotion);
+    setSpin(false);
   });
 }
 
@@ -803,7 +789,7 @@ function initSinglePrediction() {
   $("btnToggleSpin")?.addEventListener("click", () => setSpin(!isSpinning));
   $("btnResetView")?.addEventListener("click", () => {
     if (!viewer3D) return;
-    viewer3D.zoomTo(); viewer3D.zoom(1.1); viewer3D.render();
+    viewer3D.zoomTo(); viewer3D.zoom(0.72); viewer3D.render();
   });
   $("btnSnapshot")?.addEventListener("click", () => {
     if (!viewer3D) return;
