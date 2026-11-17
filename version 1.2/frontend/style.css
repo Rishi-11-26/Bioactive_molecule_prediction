@@ -67,26 +67,25 @@ a { color: inherit; }
 
 .container { width: min(1240px, 100% - 40px); margin-inline: auto; }
 
-/* ─── Ambient background ─────────────────────────────── */
-.ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.blob {
-  position: absolute; border-radius: 50%; filter: blur(80px); opacity: .55;
-  animation: float 26s var(--ease) infinite alternate;
+/* ─── Ambient background (Lightweight zero-cost GPU gradients) ─── */
+.ambient {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  background:
+    radial-gradient(ellipse 65% 55% at 5% 5%, #e1f5f0 0%, transparent 60%),
+    radial-gradient(ellipse 55% 50% at 95% 25%, #e3f0fb 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 40% 95%, #fbf1e4 0%, transparent 60%);
 }
-.blob-1 { width: 560px; height: 560px; background: #c9ede6; top: -160px; left: -140px; }
-.blob-2 { width: 520px; height: 520px; background: #d6e9f8; top: 28%; right: -180px; animation-delay: -8s; }
-.blob-3 { width: 460px; height: 460px; background: #f6e9d6; bottom: -180px; left: 30%; opacity: .4; animation-delay: -16s; }
+.blob { display: none; }
 .grid-fade {
   position: absolute; inset: 0;
-  background-image: radial-gradient(rgba(15, 148, 136, .09) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(15, 148, 136, .07) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 70%);
 }
-#moleculeCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-@keyframes float {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(60px, 40px) scale(1.08); }
-  100% { transform: translate(-40px, 70px) scale(.96); }
+#moleculeCanvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; opacity: 0.85;
 }
 
 /* ─── Navbar ─────────────────────────────────────────── */
@@ -195,7 +194,7 @@ a { color: inherit; }
 .hero-stat dd { margin: 2px 0 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 
 .hero-visual { position: relative; display: grid; place-items: center; min-height: 540px; }
-.orbit { position: absolute; border-radius: 50%; border: 1px dashed var(--line-2); animation: rotate 40s linear infinite; }
+.orbit { position: absolute; border-radius: 50%; border: 1px dashed var(--line-2); animation: rotate 40s linear infinite; will-change: transform; }
 .orbit-1 { width: 520px; height: 520px; }
 .orbit-2 { width: 640px; height: 640px; animation-duration: 60s; animation-direction: reverse; opacity: .7; }
 .orbit span { position: absolute; top: -6px; left: 50%; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 6px var(--primary-50); }
@@ -204,15 +203,22 @@ a { color: inherit; }
 
 .hero-card {
   position: relative; width: min(100%, 500px); padding: 18px; border-radius: 28px;
-  background: rgba(255,255,255,.82); border: 1px solid rgba(255,255,255,.9);
-  box-shadow: var(--shadow-lg); backdrop-filter: blur(10px);
+  background: #ffffff; border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
 }
 .hero-card-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 12px; }
 .hero-card-head strong { display: block; font-size: 1.15rem; letter-spacing: -.01em; }
 .hero-viewer {
-  position: relative; height: 420px; border-radius: 20px; overflow: hidden;
+  position: relative; height: 400px; border-radius: 20px; overflow: hidden;
   background: radial-gradient(circle at 50% 45%, #ffffff 0%, #eef6f4 70%, #e5f0ee 100%);
+  transform: translateZ(0);
 }
+.hero-viewer canvas {
+  border-radius: 20px;
+  touch-action: none;
+  cursor: grab;
+}
+.hero-viewer canvas:active { cursor: grabbing; }
 .hero-card-foot { display: flex; justify-content: space-between; padding: 14px 6px 4px; font-size: .85rem; color: var(--muted); font-weight: 600; }
 .hero-card-foot code { color: var(--ink-2); }
 .mini-label { display: block; font-size: .7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
@@ -264,8 +270,8 @@ a { color: inherit; }
 
 /* ─── Cards ──────────────────────────────────────────── */
 .card {
-  background: rgba(255,255,255,.88); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 24px; box-shadow: var(--shadow); backdrop-filter: blur(8px);
+  background: #ffffff; border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 24px; box-shadow: var(--shadow);
 }
 .card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
 .card-head.compact { margin-bottom: 0; }
@@ -351,19 +357,21 @@ kbd { background: #fff; border: 1px solid var(--line-2); border-bottom-width: 2p
 .seg-btn:hover { color: var(--ink); }
 .seg-btn.active { background: #fff; color: var(--primary-600); box-shadow: var(--shadow-sm); }
 .viewer-stage {
-  position: relative; flex: 1; min-height: 600px; border-radius: 18px; overflow: hidden;
+  position: relative; flex: 1; min-height: 520px; border-radius: 18px; overflow: hidden;
   background: radial-gradient(circle at 50% 42%, #ffffff 0%, #f1f7f6 55%, #e6f0ee 100%);
   border: 1px solid var(--line);
+  transform: translateZ(0);
 }
-.mol3d { position: absolute; inset: 0; }
-.mol3d canvas { border-radius: 18px; }
+.mol3d { position: absolute; inset: 0; transform: translateZ(0); }
+.mol3d canvas { border-radius: 18px; touch-action: none; cursor: grab; }
+.mol3d canvas:active { cursor: grabbing; }
 .stage-overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px; text-align: center; color: var(--muted); padding: 24px; z-index: 2;
 }
 .stage-overlay strong { color: var(--ink); font-size: 1.05rem; }
 .stage-overlay p { margin: 0; font-size: .9rem; max-width: 300px; }
-.stage-overlay.loading { background: rgba(244, 248, 247, .75); backdrop-filter: blur(4px); }
+.stage-overlay.loading { background: rgba(244, 248, 247, .94); }
 .stage-orb { position: relative; width: 120px; height: 120px; margin-bottom: 18px; }
 .stage-orb span { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--primary-100); animation: rotate 10s linear infinite; }
 .stage-orb span:nth-child(2) { inset: 14px; border-color: var(--line-2); transform: rotateX(60deg); animation-duration: 7s; }

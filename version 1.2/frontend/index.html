@@ -12,15 +12,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 
-  <!-- 3Dmol.js: WebGL molecular visualization (CDN + fallback) -->
+  <!-- 3Dmol.js: WebGL molecular visualization (High-speed CDN + Fallbacks) -->
   <script src="https://cdn.jsdelivr.net/npm/3dmol@2.4.2/build/3Dmol-min.js"></script>
   <script>
     if (!window.$3Dmol) {
-      document.write('<script src="https://3dmol.org/build/3Dmol-min.js"><\/script>');
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.4.2/3Dmol-min.js"><\/script>');
     }
   </script>
-  <!-- Lucide icons -->
-  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <!-- Lucide icons: High-speed jsDelivr CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script>
+    if (!window.lucide) {
+      document.write('<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"><\/script>');
+    }
+  </script>
   <script src="hero-molecule.js"></script>
 </head>
 <body>

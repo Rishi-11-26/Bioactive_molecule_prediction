@@ -71,62 +71,75 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.remove("show"), 2200);
 }
 
-/* ─── Ambient drifting molecules (canvas) ─────────────────── */
+/* ─── Ambient drifting molecules (optimized lightweight canvas) ─── */
 function initAmbientMolecules() {
   const canvas = $("moleculeCanvas");
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const palette = ["15,148,136", "90,169,230", "233,162,59", "124,196,184"];
-  let w, h, dpr, molecules = [];
+  let w, h, molecules = [];
+  let lastTime = 0;
 
   function makeMolecule() {
     const atoms = [];
-    const n = 3 + Math.floor(Math.random() * 4);
+    const n = 3 + Math.floor(Math.random() * 3);
     const ring = Math.random() > 0.5;
-    const r = 14 + Math.random() * 12;
+    const r = 12 + Math.random() * 8;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       atoms.push(ring
-        ? { x: Math.cos(a) * r, y: Math.sin(a) * r, s: 3 + Math.random() * 2.5 }
-        : { x: (i - n / 2) * r * 0.9, y: (i % 2 ? 1 : -1) * r * 0.45, s: 3 + Math.random() * 2.5 });
+        ? { x: Math.cos(a) * r, y: Math.sin(a) * r, s: 2.5 + Math.random() * 1.5 }
+        : { x: (i - n / 2) * r * 0.9, y: (i % 2 ? 1 : -1) * r * 0.4, s: 2.5 + Math.random() * 1.5 });
     }
     return {
       x: Math.random() * w, y: Math.random() * h, atoms, ring,
-      vx: (Math.random() - 0.5) * 0.22, vy: (Math.random() - 0.5) * 0.22,
-      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.003,
+      vx: (Math.random() - 0.5) * 0.16, vy: (Math.random() - 0.5) * 0.16,
+      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.002,
       color: palette[Math.floor(Math.random() * palette.length)],
-      alpha: 0.12 + Math.random() * 0.14, scale: 0.7 + Math.random() * 0.9
+      alpha: 0.12 + Math.random() * 0.1, scale: 0.7 + Math.random() * 0.6
     };
   }
 
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
     w = window.innerWidth; h = window.innerHeight;
-    canvas.width = w * dpr; canvas.height = h * dpr;
+    canvas.width = w; canvas.height = h;
     canvas.style.width = w + "px"; canvas.style.height = h + "px";
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const count = Math.round(Math.min(22, Math.max(10, (w * h) / 70000)));
+    const count = Math.min(8, Math.max(4, Math.round((w * h) / 120000)));
     molecules = Array.from({ length: count }, makeMolecule);
   }
 
-  function draw() {
+  function draw(now) {
+    if (document.hidden || prefersReducedMotion) {
+      requestAnimationFrame(draw);
+      return;
+    }
+    // Throttle to 30 FPS to save CPU and GPU for WebGL 3Dmol
+    if (now - lastTime < 33) {
+      requestAnimationFrame(draw);
+      return;
+    }
+    lastTime = now;
+
     ctx.clearRect(0, 0, w, h);
-    for (const m of molecules) {
+    for (let j = 0; j < molecules.length; j++) {
+      const m = molecules[j];
       m.x += m.vx; m.y += m.vy; m.rot += m.vr;
-      if (m.x < -80) m.x = w + 80; if (m.x > w + 80) m.x = -80;
-      if (m.y < -80) m.y = h + 80; if (m.y > h + 80) m.y = -80;
+      if (m.x < -60) m.x = w + 60; if (m.x > w + 60) m.x = -60;
+      if (m.y < -60) m.y = h + 60; if (m.y > h + 60) m.y = -60;
       ctx.save();
       ctx.translate(m.x, m.y); ctx.rotate(m.rot); ctx.scale(m.scale, m.scale);
-      ctx.strokeStyle = `rgba(${m.color},${m.alpha * 0.9})`;
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = `rgba(${m.color},${m.alpha * 0.8})`;
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      m.atoms.forEach((a, i) => {
+      for (let i = 0; i < m.atoms.length; i++) {
+        const a = m.atoms[i];
         const b = m.atoms[(i + 1) % m.atoms.length];
-        if (!m.ring && i === m.atoms.length - 1) return;
+        if (!m.ring && i === m.atoms.length - 1) continue;
         ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      });
+      }
       ctx.stroke();
-      for (const a of m.atoms) {
+      for (let i = 0; i < m.atoms.length; i++) {
+        const a = m.atoms[i];
         ctx.beginPath();
         ctx.fillStyle = `rgba(${m.color},${m.alpha + 0.1})`;
         ctx.arc(a.x, a.y, a.s, 0, Math.PI * 2);
@@ -134,12 +147,12 @@ function initAmbientMolecules() {
       }
       ctx.restore();
     }
-    if (!prefersReducedMotion) requestAnimationFrame(draw);
+    requestAnimationFrame(draw);
   }
 
   resize();
-  window.addEventListener("resize", resize);
-  draw();
+  window.addEventListener("resize", resize, { passive: true });
+  requestAnimationFrame(draw);
 }
 
 /* ─── Navigation, scroll progress, active links ───────────── */
@@ -227,6 +240,9 @@ function styleFor(kind) {
   return { stick: { radius: 0.16, colorscheme: "Jmol" }, sphere: { scale: 0.3, colorscheme: "Jmol" } };
 }
 
+let isHeroVisible = true;
+let isViewer3DVisible = true;
+
 function initHeroViewer() {
   const el = $("heroViewer");
   if (!el || !window.HERO_MOLECULE) return;
@@ -238,8 +254,26 @@ function initHeroViewer() {
     heroViewer.zoomTo();
     heroViewer.zoom(1.15);
     heroViewer.render();
-    if (!prefersReducedMotion) heroViewer.spin("y", 0.6);
-    window.addEventListener("resize", () => heroViewer && heroViewer.resize());
+    if (!prefersReducedMotion) heroViewer.spin("y", 0.4);
+
+    // Pause WebGL rendering when hero is scrolled out of view to free 100% GPU for the rest of the page
+    if ("IntersectionObserver" in window) {
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          isHeroVisible = e.isIntersecting;
+          if (heroViewer) {
+            heroViewer.spin(isHeroVisible && !prefersReducedMotion ? "y" : false, 0.4);
+          }
+        });
+      }, { threshold: 0.05 });
+      obs.observe(el);
+    }
+
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => heroViewer && isHeroVisible && heroViewer.resize(), 150);
+    }, { passive: true });
   });
 }
 
@@ -262,7 +296,7 @@ async function initHealthCheck() {
   }
 }
 
-/* ─── Main 3D viewer ──────────────────────────────────────── */
+/* ─── Main 3D viewer (High-performance, stutter-free rotation) ─── */
 function render3DMolecule(mol3dBlock, highlightIndices = null) {
   const container = $("mol3dContainer");
   const emptyEl = $("stageEmpty");
@@ -293,11 +327,48 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
       return;
     }
     if (!viewer3D) {
-      viewer3D = $3Dmol.createViewer(container, { backgroundColor: "white", backgroundAlpha: 0, antialias: true });
-      container.addEventListener("mousedown", () => { if (isSpinning) setSpin(false); });
-      container.addEventListener("touchstart", () => { if (isSpinning) setSpin(false); }, { passive: true });
-      window.addEventListener("resize", () => viewer3D && viewer3D.resize());
+      viewer3D = $3Dmol.createViewer(container, {
+        backgroundColor: "white",
+        backgroundAlpha: 0,
+        antialias: true
+      });
+
+      // Pause spin immediately when dragging starts WITHOUT running heavy DOM scans
+      container.addEventListener("mousedown", () => {
+        if (isSpinning) {
+          isSpinning = false;
+          viewer3D.spin(false);
+          updateSpinButtonUI(false);
+        }
+      });
+      container.addEventListener("touchstart", () => {
+        if (isSpinning) {
+          isSpinning = false;
+          viewer3D.spin(false);
+          updateSpinButtonUI(false);
+        }
+      }, { passive: true });
+
+      // Pause WebGL rendering when viewer is scrolled out of view
+      if ("IntersectionObserver" in window) {
+        const obs = new IntersectionObserver((entries) => {
+          entries.forEach(e => {
+            isViewer3DVisible = e.isIntersecting;
+            if (viewer3D) {
+              viewer3D.spin(isSpinning && isViewer3DVisible && !prefersReducedMotion ? "y" : false, 0.45);
+            }
+          });
+        }, { threshold: 0.05 });
+        obs.observe(container);
+      }
+
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => viewer3D && isViewer3DVisible && viewer3D.resize(), 150);
+      }, { passive: true });
     }
+
     viewer3D.clear();
     viewer3D.addModel(mol3dBlock, "sdf");
     viewer3D.setStyle({}, styleFor(currentStyle));
@@ -312,7 +383,6 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     viewer3D.zoomTo();
     viewer3D.zoom(1.1);
     viewer3D.render();
-    viewer3D.resize();
     if (emptyEl) emptyEl.hidden = true;
     if (tools) tools.hidden = false;
     if (legend) legend.hidden = false;
@@ -320,15 +390,25 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
   });
 }
 
+function updateSpinButtonUI(on) {
+  const btn = $("btnToggleSpin");
+  if (!btn) return;
+  btn.setAttribute("aria-pressed", String(on));
+  const span = btn.querySelector("span");
+  if (span) span.textContent = on ? "Pause" : "Rotate";
+  const icon = btn.querySelector("i, svg");
+  if (icon) {
+    icon.setAttribute("data-lucide", on ? "pause" : "play");
+    if (window.lucide) window.lucide.createIcons({ root: btn });
+  }
+}
+
 function setSpin(on) {
   isSpinning = on;
-  if (viewer3D) viewer3D.spin(on ? "y" : false, 0.7);
-  const btn = $("btnToggleSpin");
-  if (btn) {
-    btn.setAttribute("aria-pressed", String(on));
-    btn.innerHTML = `<i data-lucide="${on ? "pause" : "play"}"></i><span>${on ? "Pause" : "Rotate"}</span>`;
-    refreshIcons();
+  if (viewer3D) {
+    viewer3D.spin(on && isViewer3DVisible ? "y" : false, 0.45);
   }
+  updateSpinButtonUI(on);
 }
 
 /* ─── Explainable AI ──────────────────────────────────────── */
