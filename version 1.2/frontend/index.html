@@ -3,377 +3,599 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="BioPredict — AI-powered virtual screening that predicts COX-2 bioactivity of molecules with XGBoost, explainable atom attribution and interactive 3D structures." />
+  <meta name="theme-color" content="#f4f8f7" />
   <title>BioPredict — Bioactive Molecule Prediction</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <!-- 3Dmol.js: Lightweight 3D Molecular Visualization via WebGL (Fast High-Speed CDN + Fallback) -->
+
+  <!-- 3Dmol.js: WebGL molecular visualization (CDN + fallback) -->
   <script src="https://cdn.jsdelivr.net/npm/3dmol@2.4.2/build/3Dmol-min.js"></script>
   <script>
     if (!window.$3Dmol) {
       document.write('<script src="https://3dmol.org/build/3Dmol-min.js"><\/script>');
     }
   </script>
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="hero-molecule.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#predict">Skip to prediction</a>
 
-  <!-- Navigation Bar -->
-  <header class="navbar">
-    <div class="nav-container">
-      <a href="#hero" class="brand">
-        <svg class="brand-icon" viewBox="0 0 32 32" width="28" height="28" fill="none">
-          <circle cx="16" cy="16" r="5" fill="#0d9488"/>
-          <circle cx="6"  cy="8"  r="3" fill="#0284c7"/>
-          <circle cx="26" cy="8"  r="3" fill="#0284c7"/>
-          <circle cx="6"  cy="24" r="3" fill="#0284c7"/>
-          <circle cx="26" cy="24" r="3" fill="#0284c7"/>
-          <line x1="12" y1="13" x2="8"  y2="9"  stroke="#94a3b8" stroke-width="2"/>
-          <line x1="20" y1="13" x2="24" y2="9"  stroke="#94a3b8" stroke-width="2"/>
-          <line x1="12" y1="19" x2="8"  y2="23" stroke="#94a3b8" stroke-width="2"/>
-          <line x1="20" y1="19" x2="24" y2="23" stroke="#94a3b8" stroke-width="2"/>
-        </svg>
-        <div class="brand-text">
+  <!-- Ambient background: soft gradient blobs + drifting molecules -->
+  <div class="ambient" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="grid-fade"></div>
+    <canvas id="moleculeCanvas"></canvas>
+  </div>
+
+  <!-- ═══════════════ Navigation ═══════════════ -->
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="#hero" class="brand" aria-label="BioPredict home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+            <line x1="16" y1="16" x2="7" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+            <line x1="16" y1="16" x2="25" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+            <line x1="16" y1="16" x2="16" y2="27" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+            <circle cx="16" cy="16" r="5" fill="currentColor"/>
+            <circle cx="7" cy="8" r="3" fill="currentColor" opacity=".8"/>
+            <circle cx="25" cy="8" r="3" fill="currentColor" opacity=".8"/>
+            <circle cx="16" cy="27" r="3" fill="currentColor" opacity=".8"/>
+          </svg>
+        </span>
+        <span class="brand-text">
           <span class="brand-title">BioPredict</span>
           <span class="brand-tag">Drug Discovery AI</span>
-        </div>
+        </span>
       </a>
 
-      <nav class="nav-links">
-        <a href="#predict">Single Predict</a>
-        <a href="#batch">Batch Screening</a>
-        <a href="#benchmark">Model Benchmark</a>
-        <a href="#about">About</a>
+      <nav class="nav-links" id="navLinks" aria-label="Primary">
+        <a href="#predict" data-section="predict">Predict</a>
+        <a href="#batch" data-section="batch">Batch Screening</a>
+        <a href="#benchmark" data-section="benchmark">Benchmark</a>
+        <a href="#about" data-section="about">About</a>
       </nav>
 
-      <div class="status-indicator" id="serverStatus" title="FastAPI Backend Status">
-        <span class="status-dot" id="statusDot"></span>
-        <span class="status-text" id="statusText">Checking...</span>
+      <div class="nav-right">
+        <div class="status-pill" id="serverStatus" title="FastAPI backend status" role="status" aria-live="polite">
+          <span class="status-dot" id="statusDot"></span>
+          <span class="status-text" id="statusText">Checking…</span>
+        </div>
+        <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+          <i data-lucide="menu"></i>
+        </button>
       </div>
     </div>
+    <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
   </header>
 
-  <!-- Hero Section -->
-  <section class="hero-section" id="hero">
-    <div class="container hero-content">
-      <div class="hero-badge">Bioactive Molecule Virtual Screening</div>
-      <h1 class="hero-title">Predict Molecular Bioactivity with Machine Learning</h1>
-      <p class="hero-desc">
-        AI-powered computational screening to identify biologically <strong>Active</strong> compounds using Extreme Gradient Boosting (XGBoost).
-      </p>
-      <div class="hero-actions">
-        <a href="#predict" class="btn btn-primary">Predict Single Molecule</a>
-        <a href="#batch" class="btn btn-outline">Upload Batch CSV</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Section 1: Single Molecule Prediction -->
-  <section class="section" id="predict">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">Inference Workspace</span>
-        <h2>Single Molecule Prediction</h2>
-        <p>Enter a molecule name or chemical SMILES string to predict bioactivity and inspect in 3D.</p>
-      </div>
-
-      <div class="grid-2col">
-        <!-- Input Form -->
-        <div class="card">
-          <h3 class="card-title">Chemical Input</h3>
-          <p class="card-sub">Enter a common drug name (e.g., Aspirin, Celecoxib) or a chemical SMILES notation.</p>
-
-          <label for="smilesInput" class="form-label">Molecule Name or SMILES Notation</label>
-          <textarea id="smilesInput" placeholder="e.g., Aspirin, Celecoxib, Ibuprofen, or CC(=O)Oc1ccccc1C(=O)O" rows="3"></textarea>
-          
-          <div class="input-tools">
-            <button type="button" class="btn-text" id="btnExample">Load Example</button>
-            <button type="button" class="btn-text text-danger" id="btnClear">Clear</button>
+  <main>
+    <!-- ═══════════════ Hero ═══════════════ -->
+    <section class="hero" id="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy reveal">
+          <span class="eyebrow">
+            <span class="eyebrow-dot"></span>
+            COX-2 Virtual Screening &middot; CHEMBL230
+          </span>
+          <h1 class="hero-title">
+            Predict molecular bioactivity <span class="text-gradient">before the bench.</span>
+          </h1>
+          <p class="hero-desc">
+            BioPredict screens compounds against Cyclooxygenase-2 with an XGBoost model trained on
+            Morgan fingerprints — then explains <em>why</em>, atom by atom, in interactive 3D.
+          </p>
+          <div class="hero-actions">
+            <a href="#predict" class="btn btn-primary btn-lg">
+              <i data-lucide="atom"></i> Predict a molecule
+            </a>
+            <a href="#batch" class="btn btn-ghost btn-lg">
+              <i data-lucide="file-spreadsheet"></i> Screen a CSV
+            </a>
           </div>
-          <div class="alert-error" id="inputError"></div>
 
-          <button type="button" class="btn btn-primary btn-block" id="btnPredict">
-            Predict Bioactivity
-          </button>
+          <dl class="hero-stats">
+            <div class="hero-stat">
+              <dt>Curated compounds</dt>
+              <dd><span class="count-up" data-target="6240">0</span></dd>
+            </div>
+            <div class="hero-stat">
+              <dt>CV accuracy</dt>
+              <dd><span class="count-up" data-target="82.21" data-decimals="2">0</span>%</dd>
+            </div>
+            <div class="hero-stat">
+              <dt>Fingerprint bits</dt>
+              <dd><span class="count-up" data-target="2048">0</span></dd>
+            </div>
+            <div class="hero-stat">
+              <dt>Models benchmarked</dt>
+              <dd><span class="count-up" data-target="6">0</span></dd>
+            </div>
+          </dl>
         </div>
 
-        <!-- Prediction Result & 3D Structure -->
-        <div class="card result-card">
-          <h3 class="card-title">Prediction &amp; 3D Molecular Structure</h3>
-
-          <!-- Empty State -->
-          <div class="state-empty" id="resultEmpty">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5">
-              <circle cx="12" cy="12" r="9"/>
-              <path d="M12 7v5l3 3"/>
-            </svg>
-            <p>Enter a molecule name or SMILES string, then click <strong>Predict Bioactivity</strong>.</p>
+        <div class="hero-visual reveal" style="--delay: 120ms">
+          <div class="orbit orbit-1" aria-hidden="true"><span></span></div>
+          <div class="orbit orbit-2" aria-hidden="true"><span></span></div>
+          <div class="hero-card">
+            <div class="hero-card-head">
+              <div>
+                <span class="mini-label">Live structure</span>
+                <strong>Celecoxib</strong>
+              </div>
+              <span class="tag tag-active"><i data-lucide="check-circle-2"></i> Known COX-2 inhibitor</span>
+            </div>
+            <div class="hero-viewer" id="heroViewer" role="img" aria-label="Rotating 3D ball-and-stick model of Celecoxib"></div>
+            <div class="hero-card-foot">
+              <code>C17H14F3N3O2S</code>
+              <span>381.08 g/mol</span>
+            </div>
           </div>
-
-          <!-- Loading State -->
-          <div class="state-loading" id="resultLoading">
-            <div class="spinner"></div>
-            <p>Embedding 3D Coordinates &amp; Predicting Bioactivity...</p>
+          <div class="float-chip chip-a" aria-hidden="true">
+            <i data-lucide="sparkles"></i>
+            <span><strong>XGBoost</strong> best model</span>
           </div>
+          <div class="float-chip chip-b" aria-hidden="true">
+            <i data-lucide="target"></i>
+            <span>Sulfonamide anchor</span>
+          </div>
+        </div>
+      </div>
 
-          <!-- Result Content -->
-          <div class="result-body" id="resultBody" style="display: none;">
-            <div class="result-badge-container">
-              <span class="badge" id="predBadge">Active</span>
-              <span class="pred-score" id="predScore">Score: 89.9%</span>
-            </div>
+      <!-- Pipeline -->
+      <div class="container">
+        <ol class="pipeline reveal" aria-label="How BioPredict works">
+          <li class="pipe-step">
+            <span class="pipe-icon"><i data-lucide="text-cursor-input"></i></span>
+            <div><strong>Input</strong><span>Drug name or SMILES</span></div>
+          </li>
+          <li class="pipe-step">
+            <span class="pipe-icon"><i data-lucide="fingerprint"></i></span>
+            <div><strong>Fingerprint</strong><span>Morgan r=2 &middot; 2048 bits</span></div>
+          </li>
+          <li class="pipe-step">
+            <span class="pipe-icon"><i data-lucide="brain-circuit"></i></span>
+            <div><strong>Classify</strong><span>XGBoost inference</span></div>
+          </li>
+          <li class="pipe-step">
+            <span class="pipe-icon"><i data-lucide="scan-search"></i></span>
+            <div><strong>Explain</strong><span>Atom attribution &amp; SAR</span></div>
+          </li>
+        </ol>
+      </div>
+    </section>
 
-            <div class="props-list">
-              <div class="prop-item">
-                <span>Molecule Name</span>
-                <strong id="resMolName">-</strong>
-              </div>
-              <div class="prop-item">
-                <span>Selected Model</span>
-                <strong id="resModel">XGBoost</strong>
-              </div>
-              <div class="prop-item">
-                <span>Molecular Weight</span>
-                <strong id="resMW">180.04 g/mol</strong>
-              </div>
-              <div class="prop-item">
-                <span>Normalized SMILES</span>
-                <code id="resSmiles">CCO</code>
-              </div>
-            </div>
+    <!-- ═══════════════ Single Prediction ═══════════════ -->
+    <section class="section" id="predict">
+      <div class="container">
+        <header class="section-head reveal">
+          <span class="section-tag"><i data-lucide="flask-conical"></i> Inference Workspace</span>
+          <h2>Single molecule prediction</h2>
+          <p>Type a drug name or SMILES string to classify bioactivity, explore the structure in 3D and see which fragments drove the decision.</p>
+        </header>
 
-            <!-- 3D Ball-and-Stick Molecular Viewer -->
-            <div class="mol-3d-wrapper">
-              <div class="mol-3d-container" id="mol3dContainer"></div>
-              <div class="mol-3d-controls">
-                <span class="control-hint">🖱️ Left-click: rotate &middot; Scroll: zoom &middot; Right-click: pan</span>
-                <button type="button" class="btn-text" id="btnToggleSpin">Pause Rotation</button>
-              </div>
-              <!-- Atom Color Code Legend -->
-              <div class="mol-3d-legend">
-                <span class="legend-header">Atom Colors:</span>
-                <span class="legend-tag"><span class="dot dot-c"></span> Carbon (C): Grey</span>
-                <span class="legend-tag"><span class="dot dot-h"></span> Hydrogen (H): White</span>
-                <span class="legend-tag"><span class="dot dot-o"></span> Oxygen (O): Red</span>
-                <span class="legend-tag"><span class="dot dot-n"></span> Nitrogen (N): Blue</span>
-                <span class="legend-tag"><span class="dot dot-s"></span> Sulfur (S): Yellow</span>
-                <span class="legend-tag"><span class="dot dot-x"></span> Halogens (F, Cl): Green</span>
-                <span class="legend-tag"><span class="dot dot-highlight"></span> Influential: Amber Glow</span>
-              </div>
-            </div>
-
-            <!-- Explainable AI (XAI): Atom Attribution & Key Substructures -->
-            <div class="xai-container" id="xaiContainer" style="display: none;">
-              <div class="xai-header">
+        <div class="predict-grid">
+          <!-- Input column -->
+          <div class="predict-side">
+            <div class="card input-card reveal">
+              <div class="card-head">
+                <span class="card-icon"><i data-lucide="pen-line"></i></span>
                 <div>
-                  <h4 class="xai-title">🔍 Explainable AI: Key Substructures &amp; Atom Attribution</h4>
-                  <p class="xai-subtitle">Chemical fragments that most strongly influenced the model's classification:</p>
+                  <h3 class="card-title">Chemical input</h3>
+                  <p class="card-sub">Common names or SMILES notation</p>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline" id="btnToggleAttribution">
-                  <span id="btnAttributionText">✨ Highlight Key Atoms</span>
+              </div>
+
+              <label for="smilesInput" class="form-label">Molecule name or SMILES</label>
+              <div class="textarea-wrap">
+                <textarea id="smilesInput" rows="4" spellcheck="false" autocomplete="off"
+                  placeholder="e.g. Celecoxib or Cc1ccc(-c2cc(C(F)(F)F)nn2-c2ccc(S(N)(=O)=O)cc2)cc1"></textarea>
+                <span class="kbd-hint" aria-hidden="true"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+              </div>
+              <p class="error-msg" id="inputError" role="alert"></p>
+
+              <div class="btn-row">
+                <button class="btn btn-primary btn-block" id="btnPredict">
+                  <i data-lucide="zap"></i> <span>Predict bioactivity</span>
                 </button>
               </div>
-              <div class="xai-chips" id="xaiSubstructuresList"></div>
-            </div>
-
-            <!-- Lead Optimization Engine (For Inactive Predictions Only) -->
-            <div class="opt-container" id="optContainer" style="display: none;">
-              <div class="opt-header">
-                <div class="opt-badge-pill">Lead Optimization</div>
-                <h4 class="opt-title">💡 Actionable Structural Modifications for Active Binding</h4>
-                <p class="opt-subtitle">Learned SAR patterns from known Active COX-2 inhibitors to guide lead optimization:</p>
+              <div class="btn-row two">
+                <button class="btn btn-soft" id="btnExample"><i data-lucide="shuffle"></i> Random example</button>
+                <button class="btn btn-soft" id="btnClear"><i data-lucide="eraser"></i> Clear</button>
               </div>
-              <div class="opt-cards-list" id="optSuggestionsList"></div>
+
+              <div class="quick">
+                <span class="mini-label">Quick picks</span>
+                <div class="quick-chips" id="quickChips">
+                  <button class="qchip" data-value="Celecoxib">Celecoxib</button>
+                  <button class="qchip" data-value="Rofecoxib">Rofecoxib</button>
+                  <button class="qchip" data-value="Aspirin">Aspirin</button>
+                  <button class="qchip" data-value="Ibuprofen">Ibuprofen</button>
+                  <button class="qchip" data-value="Diclofenac">Diclofenac</button>
+                  <button class="qchip" data-value="Caffeine">Caffeine</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Verdict / summary -->
+            <div class="card verdict-card reveal" id="verdictCard" style="--delay: 80ms">
+              <div class="verdict-empty" id="resultEmpty">
+                <span class="empty-icon"><i data-lucide="microscope"></i></span>
+                <strong>Awaiting a molecule</strong>
+                <p>Your prediction, confidence and molecular properties will appear here.</p>
+              </div>
+
+              <div class="verdict-body" id="resultBody" hidden>
+                <div class="verdict-top">
+                  <div class="gauge" id="gauge" style="--value: 0">
+                    <svg viewBox="0 0 120 120" aria-hidden="true">
+                      <circle class="gauge-track" cx="60" cy="60" r="50" />
+                      <circle class="gauge-fill" id="gaugeFill" cx="60" cy="60" r="50" />
+                    </svg>
+                    <div class="gauge-label">
+                      <strong id="gaugeValue">0%</strong>
+                      <span>confidence</span>
+                    </div>
+                  </div>
+                  <div class="verdict-meta">
+                    <span class="mini-label">Prediction</span>
+                    <span class="badge" id="predBadge">—</span>
+                    <h3 class="mol-name" id="resMolName">—</h3>
+                    <span class="model-chip"><i data-lucide="cpu"></i> <span id="resModel">XGBoost</span></span>
+                  </div>
+                </div>
+
+                <dl class="props">
+                  <div><dt>Formula</dt><dd id="resFormula">—</dd></div>
+                  <div><dt>Mol. weight</dt><dd id="resMW">—</dd></div>
+                  <div><dt>Heavy atoms</dt><dd id="resAtoms">—</dd></div>
+                  <div><dt>Bonds</dt><dd id="resBonds">—</dd></div>
+                </dl>
+
+                <div class="smiles-box">
+                  <span class="mini-label">Canonical SMILES</span>
+                  <div class="smiles-row">
+                    <code id="resSmiles">—</code>
+                    <button class="icon-btn" id="btnCopySmiles" aria-label="Copy SMILES"><i data-lucide="copy"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3D viewer column -->
+          <div class="card viewer-card reveal" style="--delay: 140ms">
+            <div class="viewer-head">
+              <div class="card-head compact">
+                <span class="card-icon"><i data-lucide="box"></i></span>
+                <div>
+                  <h3 class="card-title">3D molecular structure</h3>
+                  <p class="card-sub">Drag to rotate &middot; scroll to zoom</p>
+                </div>
+              </div>
+              <div class="seg" role="group" aria-label="Rendering style" id="styleSeg">
+                <button class="seg-btn active" data-style="ballstick">Ball &amp; stick</button>
+                <button class="seg-btn" data-style="stick">Stick</button>
+                <button class="seg-btn" data-style="sphere">Space-fill</button>
+              </div>
+            </div>
+
+            <div class="viewer-stage">
+              <div id="mol3dContainer" class="mol3d" aria-label="Interactive 3D molecule viewer"></div>
+
+              <div class="stage-overlay" id="stageEmpty">
+                <div class="stage-orb" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                </div>
+                <strong>No structure loaded</strong>
+                <p>Run a prediction to render a force-field optimised 3D conformer.</p>
+              </div>
+
+              <div class="stage-overlay loading" id="resultLoading" hidden>
+                <div class="loader" aria-hidden="true"><span></span><span></span><span></span></div>
+                <strong>Analysing molecule</strong>
+                <p id="loadingStep">Generating fingerprint…</p>
+              </div>
+
+              <div class="viewer-tools" id="viewerTools" hidden>
+                <button class="tool-btn" id="btnToggleSpin" aria-pressed="true"><i data-lucide="pause"></i><span>Pause</span></button>
+                <button class="tool-btn" id="btnResetView"><i data-lucide="maximize"></i><span>Recenter</span></button>
+                <button class="tool-btn" id="btnSnapshot"><i data-lucide="camera"></i><span>Snapshot</span></button>
+              </div>
+
+              <ul class="legend" id="atomLegend" hidden aria-label="Atom color legend">
+                <li><span style="--c:#909090"></span>C</li>
+                <li><span style="--c:#3050f8"></span>N</li>
+                <li><span style="--c:#ff0d0d"></span>O</li>
+                <li><span style="--c:#ffff30"></span>S</li>
+                <li><span style="--c:#90e050"></span>F</li>
+                <li><span style="--c:#f59e0b"></span>Key atom</li>
+              </ul>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- Section 2: Batch Virtual Screening -->
-  <section class="section section-alt" id="batch">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">High-Throughput Screening</span>
-        <h2>Batch Molecule Prediction</h2>
-        <p>Upload a CSV file with a <code>smiles</code> column to classify multiple compounds simultaneously.</p>
-      </div>
-
-      <div class="card">
-        <!-- Upload Box -->
-        <div class="upload-dropzone" id="dropZone">
-          <input type="file" id="batchFileInput" accept=".csv" style="display:none;" />
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="12" y1="18" x2="12" y2="12"/>
-            <line x1="9" y1="15" x2="15" y2="15"/>
-          </svg>
-          <div class="upload-text">
-            <strong>Drop CSV file here</strong> or <button type="button" class="btn-text" id="btnBrowse">browse file</button>
-          </div>
-          <span class="upload-hint">Supported format: .csv with a 'smiles' column (Max 2,000 molecules)</span>
-        </div>
-
-        <div class="file-info" id="fileInfo" style="display:none;">
-          <span id="fileName">molecules.csv</span>
-          <button type="button" class="btn btn-primary" id="btnRunBatch">Start Batch Prediction</button>
-        </div>
-        <div class="alert-error" id="batchError"></div>
-
-        <!-- Batch Results Area -->
-        <div class="batch-results" id="batchResults" style="display:none;">
-          <div class="batch-summary">
-            <div class="stat-pill">Total: <strong id="statTotal">0</strong></div>
-            <div class="stat-pill stat-active">Active: <strong id="statActive">0</strong></div>
-            <div class="stat-pill stat-inactive">Inactive: <strong id="statInactive">0</strong></div>
-            <div class="stat-pill stat-err">Errors: <strong id="statErrors">0</strong></div>
-            <button type="button" class="btn btn-outline btn-sm ml-auto" id="btnDownload">Download Results CSV</button>
+        <!-- Insights row -->
+        <div class="insights" id="insights">
+          <div class="card xai-card" id="xaiContainer" hidden>
+            <div class="card-head between">
+              <div class="card-head compact">
+                <span class="card-icon amber"><i data-lucide="scan-search"></i></span>
+                <div>
+                  <h3 class="card-title">Explainable AI &middot; atom attribution</h3>
+                  <p class="card-sub">Fragments that most influenced the model. Click one to highlight it in 3D.</p>
+                </div>
+              </div>
+              <button class="btn btn-soft btn-sm" id="btnToggleAttribution">
+                <i data-lucide="sparkles"></i> <span id="btnAttributionText">Highlight key atoms</span>
+              </button>
+            </div>
+            <div class="xai-list" id="xaiSubstructuresList"></div>
           </div>
 
-          <div class="table-responsive">
+          <div class="card opt-card-wrap" id="optContainer" hidden>
+            <div class="card-head compact">
+              <span class="card-icon rose"><i data-lucide="wand-sparkles"></i></span>
+              <div>
+                <h3 class="card-title">Lead optimisation suggestions</h3>
+                <p class="card-sub">Structure–activity ideas to push this compound toward COX-2 activity.</p>
+              </div>
+            </div>
+            <div class="opt-list" id="optSuggestionsList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ Batch ═══════════════ -->
+    <section class="section section-tint" id="batch">
+      <div class="container">
+        <header class="section-head reveal">
+          <span class="section-tag"><i data-lucide="layers"></i> High-throughput</span>
+          <h2>Batch virtual screening</h2>
+          <p>Upload a CSV with a <code>smiles</code> column to classify an entire compound library in one pass.</p>
+        </header>
+
+        <div class="batch-grid">
+          <div class="card upload-card reveal">
+            <div class="dropzone" id="dropZone" tabindex="0" role="button" aria-label="Upload CSV file">
+              <div class="drop-icon"><i data-lucide="upload-cloud"></i></div>
+              <strong>Drop your CSV here</strong>
+              <p>or <button type="button" class="link-btn" id="btnBrowse">browse files</button></p>
+              <span class="drop-hint">.csv &middot; one SMILES per row</span>
+              <input type="file" id="batchFileInput" accept=".csv" hidden />
+            </div>
+
+            <div class="file-info" id="fileInfo" hidden>
+              <span class="file-icon"><i data-lucide="file-text"></i></span>
+              <span class="file-name" id="fileName"></span>
+              <button class="icon-btn" id="btnRemoveFile" aria-label="Remove file"><i data-lucide="x"></i></button>
+            </div>
+
+            <p class="error-msg" id="batchError" role="alert"></p>
+
+            <button class="btn btn-primary btn-block" id="btnRunBatch" disabled>
+              <i data-lucide="play"></i> <span>Start batch prediction</span>
+            </button>
+            <div class="progress" id="batchProgress" hidden><span></span></div>
+            <p class="upload-note"><i data-lucide="info"></i> Columns named <code>smiles</code> or <code>SMILES</code> are detected automatically.</p>
+          </div>
+
+          <div class="card summary-card reveal" style="--delay: 100ms">
+            <div class="donut-wrap">
+              <div class="donut" id="donut" style="--active: 0; --inactive: 0;">
+                <div class="donut-center">
+                  <strong id="statTotal">0</strong>
+                  <span>molecules</span>
+                </div>
+              </div>
+            </div>
+            <div class="stat-grid">
+              <div class="stat stat-active"><span class="stat-dot"></span><div><strong id="statActive">0</strong><span>Active</span></div></div>
+              <div class="stat stat-inactive"><span class="stat-dot"></span><div><strong id="statInactive">0</strong><span>Inactive</span></div></div>
+              <div class="stat stat-error"><span class="stat-dot"></span><div><strong id="statErrors">0</strong><span>Invalid</span></div></div>
+              <div class="stat stat-rate"><span class="stat-dot"></span><div><strong id="statHitRate">0%</strong><span>Hit rate</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card results-card" id="batchResults" hidden>
+          <div class="results-head">
+            <div class="filters" role="group" aria-label="Filter results" id="batchFilters">
+              <button class="seg-btn active" data-filter="all">All</button>
+              <button class="seg-btn" data-filter="Active">Active</button>
+              <button class="seg-btn" data-filter="Inactive">Inactive</button>
+              <button class="seg-btn" data-filter="error">Errors</button>
+            </div>
+            <div class="results-actions">
+              <label class="search">
+                <i data-lucide="search"></i>
+                <span class="sr-only">Search SMILES</span>
+                <input type="search" id="batchSearch" placeholder="Search SMILES…" />
+              </label>
+              <button class="btn btn-soft btn-sm" id="btnDownload"><i data-lucide="download"></i> Export CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap">
             <table class="data-table">
               <thead>
-                <tr>
-                  <th>#</th>
-                  <th>SMILES</th>
-                  <th>Status</th>
-                  <th>Activity</th>
-                  <th>Confidence</th>
-                </tr>
+                <tr><th>#</th><th>SMILES</th><th>Status</th><th>Prediction</th><th>Confidence</th></tr>
               </thead>
               <tbody id="batchTableBody"></tbody>
             </table>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Section 3: Model Benchmark -->
-  <section class="section" id="benchmark">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">Validation &amp; Results</span>
-        <h2>Model Benchmark &amp; Comparison</h2>
-        <p>10-fold molecule-aware cross-validation across all 6 evaluated machine learning architectures.</p>
-      </div>
+    <!-- ═══════════════ Benchmark ═══════════════ -->
+    <section class="section" id="benchmark">
+      <div class="container">
+        <header class="section-head reveal">
+          <span class="section-tag"><i data-lucide="bar-chart-3"></i> Model evaluation</span>
+          <h2>Benchmark across six classifiers</h2>
+          <p>Every model was trained on identical fingerprints and evaluated with 5-fold cross-validation and an independent hold-out set.</p>
+        </header>
 
-      <!-- Winner Highlight Card -->
-      <div class="winner-card">
-        <div class="winner-info">
-          <span class="badge badge-winner">Selected Production Model</span>
-          <h3 class="winner-title">XGBoost</h3>
-          <p class="winner-desc">
-            Selected based on the highest pooled 10-fold cross-validation score: 
-            <strong>AUC = (Sensitivity + Specificity) / 2 = 75.94%</strong>, achieving balanced sensitivity (90.2%) and precision (85.8%).
-          </p>
-        </div>
-        <div class="winner-stats">
-          <div class="stat-box">
-            <span class="stat-label">CV Accuracy</span>
-            <span class="stat-val">82.21%</span>
+        <div class="bench-grid">
+          <div class="card reveal">
+            <div class="card-head between">
+              <div class="card-head compact">
+                <span class="card-icon"><i data-lucide="trophy"></i></span>
+                <div>
+                  <h3 class="card-title">Leaderboard</h3>
+                  <p class="card-sub">Ranked by ROC-AUC</p>
+                </div>
+              </div>
+              <div class="seg" role="group" aria-label="Evaluation split" id="splitSeg">
+                <button class="seg-btn active" data-split="cv">Cross-val</button>
+                <button class="seg-btn" data-split="holdout">Hold-out</button>
+              </div>
+            </div>
+            <div class="bars" id="benchBars">
+              <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+            </div>
+            <div class="bars-legend">
+              <span><i class="sw sw-auc"></i>ROC-AUC</span>
+              <span><i class="sw sw-acc"></i>Accuracy</span>
+            </div>
           </div>
-          <div class="stat-box">
-            <span class="stat-label">CV F1-Score</span>
-            <span class="stat-val">87.95%</span>
+
+          <div class="card cm-card reveal" style="--delay: 100ms">
+            <div class="card-head compact">
+              <span class="card-icon"><i data-lucide="grid-2x2"></i></span>
+              <div>
+                <h3 class="card-title">Confusion matrix</h3>
+                <p class="card-sub"><span id="cmModel">XGBoost</span> &middot; <span id="cmSplit">cross-validation</span></p>
+              </div>
+            </div>
+            <div class="cm" id="confusionMatrix">
+              <span class="cm-axis cm-axis-y">Actual</span>
+              <span class="cm-axis cm-axis-x">Predicted</span>
+              <div class="cm-head"></div>
+              <div class="cm-head">Inactive</div>
+              <div class="cm-head">Active</div>
+              <div class="cm-head side">Inactive</div>
+              <div class="cm-cell good" id="cmTN"><strong>—</strong><span>TN</span></div>
+              <div class="cm-cell bad" id="cmFP"><strong>—</strong><span>FP</span></div>
+              <div class="cm-head side">Active</div>
+              <div class="cm-cell bad" id="cmFN"><strong>—</strong><span>FN</span></div>
+              <div class="cm-cell good" id="cmTP"><strong>—</strong><span>TP</span></div>
+            </div>
           </div>
-          <div class="stat-box">
-            <span class="stat-label">Holdout Accuracy</span>
-            <span class="stat-val">81.77%</span>
+        </div>
+
+        <div class="card table-card reveal">
+          <div class="table-wrap">
+            <table class="data-table metrics-table">
+              <thead>
+                <tr><th>Model</th><th>Accuracy</th><th>Precision</th><th>Sensitivity</th><th>Specificity</th><th>F1</th><th>ROC-AUC</th></tr>
+              </thead>
+              <tbody id="cvMetricsBody">
+                <tr><td colspan="7" class="muted-cell">Loading metrics…</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
 
-      <!-- CV Performance Table -->
-      <div class="card table-card">
-        <h3 class="card-title">10-Fold Cross-Validation Metrics</h3>
-        <p class="card-sub">Evaluated using StratifiedGroupKFold on development compounds.</p>
-        
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Accuracy</th>
-                <th>Precision</th>
-                <th>Sensitivity (Recall)</th>
-                <th>Specificity</th>
-                <th>F1-Score</th>
-                <th>AUC (Balanced)</th>
-              </tr>
-            </thead>
-            <tbody id="cvMetricsBody">
-              <!-- Rendered via JS -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Comparison Graph Image from Folder -->
-      <div class="card image-card">
-        <h3 class="card-title">Model Performance Comparison Graph</h3>
-        <p class="card-sub">Benchmark results across Accuracy, Precision, Recall, F1, and ROC-AUC.</p>
-        <div class="figure-container">
-          <img src="assets/model_comparison.png" alt="Machine Learning Model Comparison Graph" />
-        </div>
-      </div>
-
-      <!-- Winning Model (XGBoost) Confusion Matrix -->
-      <div class="card image-card" style="margin-top: 24px;">
-        <h3 class="card-title">Winning Model Confusion Matrix (XGBoost)</h3>
-        <p class="card-sub">Evaluation breakdown on 10-Fold Cross-Validation (Development Set) and 30% Untouched Holdout Test Set.</p>
-        <div class="figure-container">
-          <img src="assets/xgboost_confusion_matrix.png" alt="XGBoost Confusion Matrix Benchmark" />
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Section 4: About Project -->
-  <section class="section section-alt" id="about">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">Project Context</span>
-        <h2>About BioPredict</h2>
-        <p>Computational chemistry virtual screening for drug candidate prioritization.</p>
-      </div>
-
-      <div class="grid-2col">
-        <div class="card">
-          <h3 class="card-title">Problem Statement</h3>
-          <p class="card-text">
-            Identifying bioactive compounds for therapeutic targets like Cyclooxygenase-2 (COX-2) is a core step in early drug development. Traditional high-throughput screening is resource-intensive. Machine learning allows rapid virtual pre-screening to prioritize active candidates and eliminate inactive molecules.
-          </p>
-          <h3 class="card-title" style="margin-top:16px;">Target &amp; Threshold</h3>
-          <p class="card-text">
-            Molecules are classified as <strong>Active</strong> if experimental inhibition meets <br>
-            <code>IC50 &lt; 10,000 nM</code>, and <strong>Inactive</strong> if <code>IC50 &ge; 10,000 nM</code>.
-          </p>
-        </div>
-
-        <div class="card">
-          <h3 class="card-title">Methodology &amp; Fingerprints</h3>
-          <p class="card-text">
-            Chemical structures are normalized and mapped to <strong>2048-bit Morgan Circular Fingerprints (radius = 2, ECFP4-equivalent)</strong> using RDKit. These topological representations encode atom neighborhoods and functional groups for the classifier.
-          </p>
-          <div class="disclaimer-banner">
-            <strong>Research &amp; Educational Purpose:</strong> Predictions are computational estimates to guide laboratory exploration and do not constitute medical validation or clinical safety verification.
+        <div class="figures reveal">
+          <h3 class="sub-title">Research figures</h3>
+          <div class="fig-grid">
+            <button class="fig" data-src="assets/model_comparison.png" data-title="Model comparison">
+              <img src="assets/model_comparison.png" alt="Bar chart comparing metrics of six classifiers" loading="lazy" />
+              <span>Model comparison</span>
+            </button>
+            <button class="fig" data-src="assets/xgboost_confusion_matrix.png" data-title="XGBoost confusion matrix">
+              <img src="assets/xgboost_confusion_matrix.png" alt="XGBoost confusion matrix heatmap" loading="lazy" />
+              <span>XGBoost confusion matrix</span>
+            </button>
+            <button class="fig" data-src="assets/system_architecture_diagram.png" data-title="System architecture">
+              <img src="assets/system_architecture_diagram.png" alt="BioPredict system architecture diagram" loading="lazy" />
+              <span>System architecture</span>
+            </button>
+            <button class="fig" data-src="assets/user_workflow_diagram.png" data-title="User workflow">
+              <img src="assets/user_workflow_diagram.png" alt="BioPredict user workflow diagram" loading="lazy" />
+              <span>User workflow</span>
+            </button>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Footer -->
+    <!-- ═══════════════ About ═══════════════ -->
+    <section class="section section-tint" id="about">
+      <div class="container">
+        <header class="section-head reveal">
+          <span class="section-tag"><i data-lucide="info"></i> About the project</span>
+          <h2>Science behind BioPredict</h2>
+          <p>An end-to-end cheminformatics pipeline — from curated ChEMBL bioassays to an explainable, deployable web service.</p>
+        </header>
+
+        <div class="about-grid">
+          <article class="card feature reveal">
+            <span class="feature-icon"><i data-lucide="database"></i></span>
+            <h3>Curated dataset</h3>
+            <p>COX-2 bioactivity records from ChEMBL (CHEMBL230), deduplicated, standardised and labelled using an IC50 activity threshold.</p>
+          </article>
+          <article class="card feature reveal" style="--delay: 80ms">
+            <span class="feature-icon"><i data-lucide="fingerprint"></i></span>
+            <h3>Morgan fingerprints</h3>
+            <p>Each molecule becomes a 2048-bit ECFP4-style vector capturing circular atom environments of radius two.</p>
+          </article>
+          <article class="card feature reveal" style="--delay: 160ms">
+            <span class="feature-icon"><i data-lucide="brain-circuit"></i></span>
+            <h3>XGBoost classifier</h3>
+            <p>Gradient-boosted trees selected after benchmarking against ANN, SVM, RBF, Random Forest and Naive Bayes.</p>
+          </article>
+          <article class="card feature reveal" style="--delay: 240ms">
+            <span class="feature-icon"><i data-lucide="scan-search"></i></span>
+            <h3>Explainability</h3>
+            <p>Feature importances are mapped back to fingerprint bits and atoms, revealing the fragments behind each decision.</p>
+          </article>
+        </div>
+
+        <div class="stack reveal">
+          <span class="mini-label">Built with</span>
+          <ul class="stack-list">
+            <li>Python</li><li>RDKit</li><li>XGBoost</li><li>scikit-learn</li><li>FastAPI</li><li>3Dmol.js</li><li>PubChem</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
   <footer class="footer">
-    <div class="container footer-content">
-      <span><strong>BioPredict</strong> — Bioactive Molecule Virtual Screening</span>
-      <span class="footer-links">
-        <a href="#predict">Single Predict</a> · 
-        <a href="#batch">Batch</a> · 
-        <a href="#benchmark">Benchmark</a>
-      </span>
+    <div class="container footer-inner">
+      <div class="brand small">
+        <span class="brand-mark" aria-hidden="true"><i data-lucide="atom"></i></span>
+        <span class="brand-title">BioPredict</span>
+      </div>
+      <p>COX-2 bioactivity prediction for research and education. Not for clinical use.</p>
+      <nav class="footer-links" aria-label="Resources">
+        <a href="/docs" target="_blank" rel="noopener">API docs</a>
+        <a href="/presentation" target="_blank" rel="noopener">Presentation</a>
+        <a href="#hero">Back to top</a>
+      </nav>
     </div>
   </footer>
+
+  <!-- Figure lightbox -->
+  <dialog class="lightbox" id="lightbox" aria-labelledby="lightboxTitle">
+    <div class="lightbox-head">
+      <strong id="lightboxTitle">Figure</strong>
+      <button class="icon-btn" id="lightboxClose" aria-label="Close"><i data-lucide="x"></i></button>
+    </div>
+    <img id="lightboxImg" src="" alt="" />
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="script.js"></script>
 </body>
