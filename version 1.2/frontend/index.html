@@ -264,85 +264,114 @@
             </div>
           </div>
 
-          <!-- 3D viewer column -->
-          <div class="card viewer-card reveal" style="--delay: 140ms">
-            <div class="viewer-head">
+          <!-- 3D viewer & Explainable AI column (Right Side) -->
+          <div class="predict-side predict-right">
+            <div class="card viewer-card reveal" style="--delay: 140ms">
+              <div class="viewer-head">
+                <div class="card-head compact">
+                  <span class="card-icon"><i data-lucide="box"></i></span>
+                  <div>
+                    <h3 class="card-title">3D molecular structure</h3>
+                    <p class="card-sub">Drag to rotate &middot; scroll to zoom</p>
+                  </div>
+                </div>
+                <div class="seg" role="group" aria-label="Rendering style" id="styleSeg">
+                  <button class="seg-btn active" data-style="ballstick">Ball &amp; stick</button>
+                  <button class="seg-btn" data-style="stick">Stick</button>
+                </div>
+              </div>
+
+              <div class="viewer-stage">
+                <div id="mol3dContainer" class="mol3d" aria-label="Interactive 3D molecule viewer"></div>
+
+                <div class="stage-overlay" id="stageEmpty">
+                  <div class="stage-orb" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <strong>No structure loaded</strong>
+                  <p>Run a prediction to render a force-field optimised 3D conformer.</p>
+                </div>
+
+                <div class="stage-overlay loading" id="resultLoading" hidden>
+                  <div class="loader" aria-hidden="true"><span></span><span></span><span></span></div>
+                  <strong>Analysing molecule</strong>
+                  <p id="loadingStep">Generating fingerprint…</p>
+                </div>
+
+                <div class="viewer-tools" id="viewerTools" hidden>
+                  <button class="tool-btn" id="btnToggleSpin" aria-pressed="false"><i data-lucide="play"></i><span>Rotate</span></button>
+                  <button class="tool-btn" id="btnResetView"><i data-lucide="maximize"></i><span>Recenter</span></button>
+                  <button class="tool-btn" id="btnSnapshot"><i data-lucide="camera"></i><span>Snapshot</span></button>
+                </div>
+
+                <ul class="legend" id="atomLegend" hidden aria-label="Atom color legend">
+                  <li><span style="--c:#909090"></span>C</li>
+                  <li><span style="--c:#3050f8"></span>N</li>
+                  <li><span style="--c:#ff0d0d"></span>O</li>
+                  <li><span style="--c:#ffff30"></span>S</li>
+                  <li><span style="--c:#90e050"></span>F</li>
+                  <li><span style="--c:#f59e0b"></span>Key atom</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Target Profile Card (Shown initially when awaiting a molecule) -->
+            <div class="card target-specs-card reveal" id="targetSpecsCard" style="--delay: 160ms">
               <div class="card-head compact">
-                <span class="card-icon"><i data-lucide="box"></i></span>
+                <span class="card-icon"><i data-lucide="shield-check"></i></span>
                 <div>
-                  <h3 class="card-title">3D molecular structure</h3>
-                  <p class="card-sub">Drag to rotate &middot; scroll to zoom</p>
+                  <h3 class="card-title">Target &amp; Assay Specifications</h3>
+                  <p class="card-sub">ChEMBL230 &middot; Cyclooxygenase-2 Benchmark</p>
                 </div>
               </div>
-              <div class="seg" role="group" aria-label="Rendering style" id="styleSeg">
-                <button class="seg-btn active" data-style="ballstick">Ball &amp; stick</button>
-                <button class="seg-btn" data-style="stick">Stick</button>
-                <button class="seg-btn" data-style="sphere">Space-fill</button>
+              <div class="spec-grid">
+                <div class="spec-item">
+                  <span class="spec-label">Target Organism</span>
+                  <strong>Homo sapiens (Human)</strong>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Activity Cutoff</span>
+                  <strong>IC50 &le; 1,000 nM (Active)</strong>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Featurization</span>
+                  <strong>Morgan r=2 &middot; 2048-bit</strong>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Primary Classifier</span>
+                  <strong>XGBoost (82.21% CV Acc)</strong>
+                </div>
               </div>
             </div>
 
-            <div class="viewer-stage">
-              <div id="mol3dContainer" class="mol3d" aria-label="Interactive 3D molecule viewer"></div>
-
-              <div class="stage-overlay" id="stageEmpty">
-                <div class="stage-orb" aria-hidden="true">
-                  <span></span><span></span><span></span>
+            <!-- Explainable AI Card (Swapped in when prediction is made) -->
+            <div class="card xai-card" id="xaiContainer" hidden>
+              <div class="card-head between">
+                <div class="card-head compact">
+                  <span class="card-icon amber"><i data-lucide="scan-search"></i></span>
+                  <div>
+                    <h3 class="card-title">Explainable AI &middot; atom attribution</h3>
+                    <p class="card-sub">Fragments that influenced the decision. Click one to highlight in 3D.</p>
+                  </div>
                 </div>
-                <strong>No structure loaded</strong>
-                <p>Run a prediction to render a force-field optimised 3D conformer.</p>
+                <button class="btn btn-soft btn-sm" id="btnToggleAttribution">
+                  <i data-lucide="sparkles"></i> <span id="btnAttributionText">Highlight key atoms</span>
+                </button>
               </div>
-
-              <div class="stage-overlay loading" id="resultLoading" hidden>
-                <div class="loader" aria-hidden="true"><span></span><span></span><span></span></div>
-                <strong>Analysing molecule</strong>
-                <p id="loadingStep">Generating fingerprint…</p>
-              </div>
-
-              <div class="viewer-tools" id="viewerTools" hidden>
-                <button class="tool-btn" id="btnToggleSpin" aria-pressed="true"><i data-lucide="pause"></i><span>Pause</span></button>
-                <button class="tool-btn" id="btnResetView"><i data-lucide="maximize"></i><span>Recenter</span></button>
-                <button class="tool-btn" id="btnSnapshot"><i data-lucide="camera"></i><span>Snapshot</span></button>
-              </div>
-
-              <ul class="legend" id="atomLegend" hidden aria-label="Atom color legend">
-                <li><span style="--c:#909090"></span>C</li>
-                <li><span style="--c:#3050f8"></span>N</li>
-                <li><span style="--c:#ff0d0d"></span>O</li>
-                <li><span style="--c:#ffff30"></span>S</li>
-                <li><span style="--c:#90e050"></span>F</li>
-                <li><span style="--c:#f59e0b"></span>Key atom</li>
-              </ul>
+              <div class="xai-list" id="xaiSubstructuresList"></div>
             </div>
-          </div>
-        </div>
 
-        <!-- Insights row -->
-        <div class="insights" id="insights">
-          <div class="card xai-card" id="xaiContainer" hidden>
-            <div class="card-head between">
+            <!-- Lead Optimization Card (Swapped in when Inactive is predicted) -->
+            <div class="card opt-card-wrap" id="optContainer" hidden>
               <div class="card-head compact">
-                <span class="card-icon amber"><i data-lucide="scan-search"></i></span>
+                <span class="card-icon rose"><i data-lucide="wand-sparkles"></i></span>
                 <div>
-                  <h3 class="card-title">Explainable AI &middot; atom attribution</h3>
-                  <p class="card-sub">Fragments that most influenced the model. Click one to highlight it in 3D.</p>
+                  <h3 class="card-title">Lead optimisation suggestions</h3>
+                  <p class="card-sub">Structure–activity ideas to push this compound toward COX-2 activity.</p>
                 </div>
               </div>
-              <button class="btn btn-soft btn-sm" id="btnToggleAttribution">
-                <i data-lucide="sparkles"></i> <span id="btnAttributionText">Highlight key atoms</span>
-              </button>
+              <div class="opt-list" id="optSuggestionsList"></div>
             </div>
-            <div class="xai-list" id="xaiSubstructuresList"></div>
-          </div>
-
-          <div class="card opt-card-wrap" id="optContainer" hidden>
-            <div class="card-head compact">
-              <span class="card-icon rose"><i data-lucide="wand-sparkles"></i></span>
-              <div>
-                <h3 class="card-title">Lead optimisation suggestions</h3>
-                <p class="card-sub">Structure–activity ideas to push this compound toward COX-2 activity.</p>
-              </div>
-            </div>
-            <div class="opt-list" id="optSuggestionsList"></div>
           </div>
         </div>
       </div>

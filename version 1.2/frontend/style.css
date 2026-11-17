@@ -270,8 +270,16 @@ a { color: inherit; }
 .card-sub { margin: 2px 0 0; color: var(--muted); font-size: .85rem; }
 
 /* ─── Predict ────────────────────────────────────────── */
-.predict-grid { display: grid; grid-template-columns: minmax(360px, 420px) minmax(340px, 1fr); gap: 24px; align-items: start; }
+.predict-grid { display: grid; grid-template-columns: minmax(360px, 440px) 1fr; gap: 24px; align-items: start; }
 .predict-side { display: flex; flex-direction: column; gap: 24px; }
+.predict-right { display: flex; flex-direction: column; gap: 24px; }
+
+/* Target Specs Card */
+.target-specs-card { padding: 22px; }
+.spec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 16px; }
+.spec-item { padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.spec-label { display: block; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 2px; }
+.spec-item strong { font-size: .92rem; color: var(--ink); }
 .form-label { display: block; font-weight: 700; font-size: .85rem; margin-bottom: 8px; color: var(--ink-2); }
 .textarea-wrap { position: relative; }
 textarea {

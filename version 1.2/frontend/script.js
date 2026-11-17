@@ -195,8 +195,14 @@ function initReveal() {
   if (!("IntersectionObserver" in window)) { els.forEach(e => e.classList.add("in")); return; }
   const io = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
-  }, { threshold: 0.12 });
+  }, { threshold: 0.05, rootMargin: "60px" });
   els.forEach(e => io.observe(e));
+  requestAnimationFrame(() => {
+    els.forEach(e => {
+      const rect = e.getBoundingClientRect();
+      if (rect.top < window.innerHeight + 100) e.classList.add("in");
+    });
+  });
 }
 
 function animateNumber(el, target, decimals = 0, duration = 1400, suffix = "") {
@@ -234,7 +240,6 @@ function when3DmolReady(cb, attempts = 0) {
 
 function styleFor(kind) {
   if (kind === "stick") return { stick: { radius: 0.16 } };
-  if (kind === "sphere") return { sphere: { scale: 0.8 } };
   return { stick: { radius: 0.13 }, sphere: { scale: 0.24 } };
 }
 
@@ -609,11 +614,9 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
           }
         });
       }
-      const hl = currentStyle === "sphere"
-        ? { sphere: { color: "#f59e0b", scale: 0.95 } }
-        : currentStyle === "stick"
-          ? { stick: { color: "#f59e0b", radius: 0.22 } }
-          : { sphere: { color: "#f59e0b", scale: 0.38 }, stick: { color: "#f59e0b", radius: 0.18 } };
+      const hl = currentStyle === "stick"
+        ? { stick: { color: "#f59e0b", radius: 0.22 } }
+        : { sphere: { color: "#f59e0b", scale: 0.38 }, stick: { color: "#f59e0b", radius: 0.18 } };
       viewer3D.setStyle({ index: highlightIndices }, hl);
     }
 
@@ -655,6 +658,9 @@ function renderXAI(attribution) {
   const btnToggle = $("btnToggleAttribution");
   const btnText = $("btnAttributionText");
   if (!container || !list) return;
+
+  const targetSpecs = $("targetSpecsCard");
+  if (targetSpecs) targetSpecs.hidden = true;
 
   const subs = attribution?.top_substructures || [];
   if (!subs.length) { container.hidden = true; return; }
@@ -792,6 +798,7 @@ function initSinglePrediction() {
     $("atomLegend").hidden = true;
     $("xaiContainer").hidden = true;
     $("optContainer").hidden = true;
+    if ($("targetSpecsCard")) $("targetSpecsCard").hidden = false;
   });
 
   input.addEventListener("keydown", (e) => {
