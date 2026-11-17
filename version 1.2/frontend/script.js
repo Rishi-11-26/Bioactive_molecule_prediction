@@ -24,7 +24,6 @@ const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)
 
 let exampleIdx = 0;
 let viewer3D = null;
-let heroViewer = null;
 let isSpinning = true;
 let currentStyle = "ballstick";
 let currentHighlight = null;
@@ -40,6 +39,7 @@ function startApp() {
   initReveal();
   initCountUp();
   initHealthCheck();
+  initHeroDynamicMolecules();
   initSinglePrediction();
   initBatchPrediction();
   initBenchmark();
@@ -238,41 +238,281 @@ function styleFor(kind) {
   return { stick: { radius: 0.16, colorscheme: "Jmol" }, sphere: { scale: 0.3, colorscheme: "Jmol" } };
 }
 
-let isHeroVisible = true;
 let isViewer3DVisible = true;
 
-function initHeroViewer() {
-  const el = $("heroViewer");
-  if (!el || !window.HERO_MOLECULE) return;
-  when3DmolReady((ok) => {
-    if (!ok) return;
-    heroViewer = $3Dmol.createViewer(el, { backgroundColor: "white", backgroundAlpha: 0, antialias: true });
-    heroViewer.addModel(window.HERO_MOLECULE, "sdf");
-    heroViewer.setStyle({}, styleFor("ballstick"));
-    heroViewer.zoomTo();
-    heroViewer.zoom(1.15);
-    heroViewer.render();
-    if (!prefersReducedMotion) heroViewer.spin("y", 0.4);
+/* ─── Hero Dynamic Molecular Simulation (Pure 2D Canvas) ──── */
+function initHeroDynamicMolecules() {
+  const canvas = $("heroMolCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
 
-    // Pause WebGL rendering when hero is scrolled out of view to free 100% GPU for the rest of the page
-    if ("IntersectionObserver" in window) {
-      const obs = new IntersectionObserver((entries) => {
-        entries.forEach(e => {
-          isHeroVisible = e.isIntersecting;
-          if (heroViewer) {
-            heroViewer.spin(isHeroVisible && !prefersReducedMotion ? "y" : false, 0.4);
-          }
-        });
-      }, { threshold: 0.05 });
-      obs.observe(el);
-    }
+  let animId = null;
+  let isVisible = true;
+  let lastTime = 0;
+  const fpsInterval = 1000 / 35; // Throttled to 35 FPS for smooth animation with ~0% GPU load
 
-    let resizeTimer;
-    window.addEventListener("resize", () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => heroViewer && isHeroVisible && heroViewer.resize(), 150);
-    }, { passive: true });
-  });
+  // Representation of a multi-ring pharmacophore backbone undergoing conformational dynamics
+  const atoms = [
+    // Core Pyrazole / Central Ring
+    { id: 0, sym: "N", x: -20, y: -15, z: 10, color: "#6366f1", r: 8 },
+    { id: 1, sym: "N", x: 15, y: -25, z: -5, color: "#4f46e5", r: 8 },
+    { id: 2, sym: "C", x: 40, y: 0, z: -15, color: "#0ea5e9", r: 7 },
+    { id: 3, sym: "C", x: 20, y: 25, z: -5, color: "#0ea5e9", r: 7 },
+    { id: 4, sym: "C", x: -18, y: 15, z: 12, color: "#0ea5e9", r: 7 },
+    // Phenyl Ring A (Right wing)
+    { id: 5, sym: "C", x: 80, y: -5, z: -30, color: "#0284c7", r: 6.5 },
+    { id: 6, sym: "C", x: 110, y: 15, z: -40, color: "#0284c7", r: 6.5 },
+    { id: 7, sym: "C", x: 140, y: 10, z: -45, color: "#0284c7", r: 6.5 },
+    { id: 8, sym: "C", x: 145, y: -20, z: -40, color: "#0284c7", r: 6.5 },
+    { id: 9, sym: "C", x: 118, y: -40, z: -30, color: "#0284c7", r: 6.5 },
+    { id: 10, sym: "C", x: 85, y: -32, z: -25, color: "#0284c7", r: 6.5 },
+    // Sulfonamide group off ring A (Active Pharmacophore Anchor)
+    { id: 11, sym: "S", x: 180, y: 35, z: -50, color: "#f59e0b", r: 9 },
+    { id: 12, sym: "O", x: 205, y: 25, z: -30, color: "#ef4444", r: 7 },
+    { id: 13, sym: "O", x: 175, y: 65, z: -60, color: "#ef4444", r: 7 },
+    { id: 14, sym: "N", x: 195, y: 30, z: -80, color: "#4f46e5", r: 7.5 },
+    // Phenyl Ring B (Bottom-Left wing)
+    { id: 15, sym: "C", x: -45, y: 38, z: 25, color: "#0284c7", r: 6.5 },
+    { id: 16, sym: "C", x: -55, y: 70, z: 30, color: "#0284c7", r: 6.5 },
+    { id: 17, sym: "C", x: -85, y: 85, z: 40, color: "#0284c7", r: 6.5 },
+    { id: 18, sym: "C", x: -110, y: 68, z: 45, color: "#0284c7", r: 6.5 },
+    { id: 19, sym: "C", x: -102, y: 35, z: 40, color: "#0284c7", r: 6.5 },
+    { id: 20, sym: "C", x: -70, y: 20, z: 30, color: "#0284c7", r: 6.5 },
+    // Halo-substituent cluster (Top-Left)
+    { id: 21, sym: "C", x: -40, y: -38, z: 20, color: "#0ea5e9", r: 7 },
+    { id: 22, sym: "F", x: -65, y: -30, z: 30, color: "#10b981", r: 6.5 },
+    { id: 23, sym: "F", x: -35, y: -65, z: 25, color: "#10b981", r: 6.5 },
+    { id: 24, sym: "F", x: -50, y: -45, z: -5, color: "#10b981", r: 6.5 }
+  ];
+
+  const bonds = [
+    // Central ring
+    [0, 1, 1], [1, 2, 2], [2, 3, 1], [3, 4, 2], [4, 0, 1],
+    // Right phenyl ring
+    [2, 5, 1], [5, 6, 2], [6, 7, 1], [7, 8, 2], [8, 9, 1], [9, 10, 2], [10, 5, 1],
+    // Sulfonamide
+    [7, 11, 1], [11, 12, 2], [11, 13, 2], [11, 14, 1],
+    // Left phenyl ring
+    [4, 15, 1], [15, 16, 2], [16, 17, 1], [17, 18, 2], [18, 19, 1], [19, 20, 2], [20, 15, 1],
+    // Halo-substituents
+    [0, 21, 1], [21, 22, 1], [21, 23, 1], [21, 24, 1]
+  ];
+
+  // Floating ambient background probe particles
+  const ambientParticles = Array.from({ length: 18 }, () => ({
+    x: (Math.random() - 0.5) * 360,
+    y: (Math.random() - 0.5) * 280,
+    vx: (Math.random() - 0.5) * 0.3,
+    vy: (Math.random() - 0.5) * 0.3,
+    r: Math.random() * 2.5 + 2,
+    color: Math.random() > 0.5 ? "rgba(14, 165, 233, 0.4)" : "rgba(16, 185, 129, 0.4)"
+  }));
+
+  let width = 0;
+  let height = 0;
+  let dpr = 1;
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+  }
+
+  resize();
+  window.addEventListener("resize", resize, { passive: true });
+
+  let angleY = 0;
+  let angleX = 0.2;
+  let targetAngleX = 0.2;
+  let targetAngleY = 0;
+
+  const parentCard = canvas.closest(".hero-card") || canvas;
+  parentCard.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width - 0.5;
+    const my = (e.clientY - rect.top) / rect.height - 0.5;
+    targetAngleY = mx * 0.75;
+    targetAngleX = -my * 0.5;
+  }, { passive: true });
+
+  parentCard.addEventListener("mouseleave", () => {
+    targetAngleX = 0.2;
+    targetAngleY = 0;
+  }, { passive: true });
+
+  function render(time) {
+    if (!isVisible) return;
+    animId = requestAnimationFrame(render);
+
+    const elapsed = time - lastTime;
+    if (elapsed < fpsInterval) return;
+    lastTime = time - (elapsed % fpsInterval);
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+
+    // Continuous smooth rotation + mouse interpolation
+    angleY += 0.007;
+    angleX += (targetAngleX - angleX) * 0.05;
+    const curAngleY = angleY + targetAngleY;
+
+    const cosY = Math.cos(curAngleY);
+    const sinY = Math.sin(curAngleY);
+    const cosX = Math.cos(angleX);
+    const sinX = Math.sin(angleX);
+
+    const centerX = width / 2;
+    const centerY = height / 2 + 5;
+    const fov = 380; // Perspective depth
+
+    // Draw ambient floating probe particles
+    ambientParticles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < -180) p.x = 180;
+      if (p.x > 180) p.x = -180;
+      if (p.y < -140) p.y = 140;
+      if (p.y > 140) p.y = -140;
+
+      const px = centerX + p.x;
+      const py = centerY + p.y;
+      ctx.beginPath();
+      ctx.arc(px, py, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    });
+
+    // Project atoms into 2.5D coordinates
+    const scaleFactor = Math.min(width, height) / 340;
+    const projected = atoms.map(a => {
+      const x1 = a.x * cosY - a.z * sinY;
+      const z1 = a.z * cosY + a.x * sinY;
+      const y2 = a.y * cosX - z1 * sinX;
+      const z2 = z1 * cosX + a.y * sinX;
+
+      const perspective = fov / (fov + z2 * 0.7);
+      return {
+        id: a.id,
+        sym: a.sym,
+        color: a.color,
+        origR: a.r,
+        x2d: centerX + x1 * scaleFactor * perspective,
+        y2d: centerY + y2 * scaleFactor * perspective,
+        z: z2,
+        scale: perspective,
+        r: Math.max(3, a.r * scaleFactor * perspective)
+      };
+    });
+
+    // Draw bonds
+    bonds.forEach(([u, v, order]) => {
+      const a = projected[u];
+      const b = projected[v];
+      const avgZ = (a.z + b.z) / 2;
+      const alpha = Math.max(0.2, Math.min(0.85, (avgZ + 120) / 240));
+
+      ctx.save();
+      ctx.strokeStyle = `rgba(148, 163, 184, ${alpha})`;
+      ctx.lineWidth = Math.max(1.5, 2.2 * a.scale);
+      ctx.lineCap = "round";
+
+      if (order === 1) {
+        ctx.beginPath();
+        ctx.moveTo(a.x2d, a.y2d);
+        ctx.lineTo(b.x2d, b.y2d);
+        ctx.stroke();
+      } else {
+        const dx = b.x2d - a.x2d;
+        const dy = b.y2d - a.y2d;
+        const len = Math.hypot(dx, dy) || 1;
+        const offX = (-dy / len) * 2.8 * a.scale;
+        const offY = (dx / len) * 2.8 * a.scale;
+
+        ctx.beginPath();
+        ctx.moveTo(a.x2d + offX, a.y2d + offY);
+        ctx.lineTo(b.x2d + offX, b.y2d + offY);
+        ctx.moveTo(a.x2d - offX, a.y2d - offY);
+        ctx.lineTo(b.x2d - offX, b.y2d - offY);
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+    // Sort atoms by Z for painter's algorithm
+    const sortedAtoms = [...projected].sort((a, b) => a.z - b.z);
+
+    // Draw atoms
+    sortedAtoms.forEach(a => {
+      ctx.save();
+      // Outer glow
+      const glowGrad = ctx.createRadialGradient(a.x2d, a.y2d, a.r * 0.2, a.x2d, a.y2d, a.r * 2.0);
+      glowGrad.addColorStop(0, a.color);
+      glowGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(a.x2d, a.y2d, a.r * 2.0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sphere core
+      const coreGrad = ctx.createRadialGradient(
+        a.x2d - a.r * 0.3, a.y2d - a.r * 0.3, a.r * 0.1,
+        a.x2d, a.y2d, a.r
+      );
+      coreGrad.addColorStop(0, "#ffffff");
+      coreGrad.addColorStop(0.5, a.color);
+      coreGrad.addColorStop(1, "#0f172a");
+
+      ctx.beginPath();
+      ctx.arc(a.x2d, a.y2d, a.r, 0, Math.PI * 2);
+      ctx.fillStyle = coreGrad;
+      ctx.shadowColor = a.color;
+      ctx.shadowBlur = 6 * a.scale;
+      ctx.fill();
+
+      // Atom symbol text
+      if (a.r > 5) {
+        ctx.fillStyle = "#ffffff";
+        ctx.font = `700 ${Math.max(8, Math.round(a.r * 1.05))}px Plus Jakarta Sans, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowBlur = 0;
+        ctx.fillText(a.sym, a.x2d, a.y2d + 0.5);
+      }
+      ctx.restore();
+    });
+
+    ctx.restore();
+  }
+
+  // Handle visibility & reduced motion
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    render(0);
+    return;
+  }
+
+  if ("IntersectionObserver" in window) {
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        isVisible = e.isIntersecting;
+        if (isVisible && !animId) {
+          lastTime = performance.now();
+          animId = requestAnimationFrame(render);
+        } else if (!isVisible && animId) {
+          cancelAnimationFrame(animId);
+          animId = null;
+        }
+      });
+    }, { threshold: 0.05 });
+    obs.observe(canvas);
+  } else {
+    animId = requestAnimationFrame(render);
+  }
 }
 
 /* ─── Health check ────────────────────────────────────────── */
