@@ -548,7 +548,7 @@ kbd { background: #fff; border: 1px solid var(--line-2); border-bottom-width: 2p
 .table-card { padding: 0; overflow: hidden; }
 
 .figures { margin-top: 40px; }
-.fig-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.fig-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 860px; margin: 0 auto; }
 .fig { padding: 10px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); text-align: left; box-shadow: var(--shadow-sm); transition: transform .35s var(--ease), box-shadow .35s var(--ease); }
 .fig:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
 .fig img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 12px; background: var(--surface-2); }
