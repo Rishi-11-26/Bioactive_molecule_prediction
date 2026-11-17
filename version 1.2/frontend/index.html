@@ -5,8 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BioPredict — Bioactive Molecule Prediction</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- 3Dmol.js: Lightweight 3D Molecular Visualization via WebGL -->
-  <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+  <!-- 3Dmol.js: Lightweight 3D Molecular Visualization via WebGL (Fast High-Speed CDN + Fallback) -->
+  <script src="https://cdn.jsdelivr.net/npm/3dmol@2.4.2/build/3Dmol-min.js"></script>
+  <script>
+    if (!window.$3Dmol) {
+      document.write('<script src="https://3dmol.org/build/3Dmol-min.js"><\/script>');
+    }
+  </script>
 </head>
 <body>
 
@@ -150,7 +155,32 @@
                 <span class="legend-tag"><span class="dot dot-n"></span> Nitrogen (N): Blue</span>
                 <span class="legend-tag"><span class="dot dot-s"></span> Sulfur (S): Yellow</span>
                 <span class="legend-tag"><span class="dot dot-x"></span> Halogens (F, Cl): Green</span>
+                <span class="legend-tag"><span class="dot dot-highlight"></span> Influential: Amber Glow</span>
               </div>
+            </div>
+
+            <!-- Explainable AI (XAI): Atom Attribution & Key Substructures -->
+            <div class="xai-container" id="xaiContainer" style="display: none;">
+              <div class="xai-header">
+                <div>
+                  <h4 class="xai-title">🔍 Explainable AI: Key Substructures &amp; Atom Attribution</h4>
+                  <p class="xai-subtitle">Chemical fragments that most strongly influenced the model's classification:</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline" id="btnToggleAttribution">
+                  <span id="btnAttributionText">✨ Highlight Key Atoms</span>
+                </button>
+              </div>
+              <div class="xai-chips" id="xaiSubstructuresList"></div>
+            </div>
+
+            <!-- Lead Optimization Engine (For Inactive Predictions Only) -->
+            <div class="opt-container" id="optContainer" style="display: none;">
+              <div class="opt-header">
+                <div class="opt-badge-pill">Lead Optimization</div>
+                <h4 class="opt-title">💡 Actionable Structural Modifications for Active Binding</h4>
+                <p class="opt-subtitle">Learned SAR patterns from known Active COX-2 inhibitors to guide lead optimization:</p>
+              </div>
+              <div class="opt-cards-list" id="optSuggestionsList"></div>
             </div>
           </div>
         </div>

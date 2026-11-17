@@ -238,6 +238,7 @@ textarea:focus { border-color: var(--primary); }
 .dot-n { background: #3b82f6; }  /* Nitrogen: Blue */
 .dot-s { background: #eab308; }  /* Sulfur: Yellow */
 .dot-x { background: #22c55e; }  /* Halogens (F, Cl): Green */
+.dot-highlight { background: #f59e0b; box-shadow: 0 0 4px #f59e0b; } /* Influential Atoms: Amber */
 
 /* ─── Batch Virtual Screening ─────────────────────────────── */
 .upload-dropzone {
@@ -329,6 +330,194 @@ textarea:focus { border-color: var(--primary); }
 .footer-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 .footer-links a { color: var(--text-muted); margin: 0 4px; }
 .footer-links a:hover { color: var(--primary); }
+
+.dot-highlight { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+
+/* ─── Explainable AI (XAI) & Atom Attribution ─────────────── */
+.xai-container {
+  margin-top: 20px;
+  padding: 16px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+}
+.xai-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.xai-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.xai-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.xai-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.xai-chip {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.xai-chip:hover {
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.12);
+}
+.xai-chip.active {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  box-shadow: 0 0 0 2px #fde68a;
+}
+.xai-chip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.xai-chip-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+.xai-chip-weight {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.xai-chip-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.xai-chip-body code {
+  font-size: 0.76rem;
+  color: #0284c7;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xai-chip-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ─── Lead Optimization Engine (For Inactive Molecules) ───── */
+.opt-container {
+  margin-top: 20px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #fefce8 100%);
+  border: 1.5px solid #fef08a;
+  border-radius: var(--radius);
+}
+.opt-header {
+  margin-bottom: 14px;
+}
+.opt-badge-pill {
+  display: inline-block;
+  background: #fef08a;
+  color: #854d0e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+.opt-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #854d0e;
+  margin-bottom: 4px;
+}
+.opt-subtitle {
+  font-size: 0.84rem;
+  color: #713f12;
+  line-height: 1.4;
+}
+.opt-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.opt-card {
+  background: #ffffff;
+  border: 1px solid #fde047;
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 2px 8px rgba(161, 98, 7, 0.06);
+}
+.opt-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.opt-card-number {
+  background: #ca8a04;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.opt-card-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e293b;
+  flex: 1;
+}
+.opt-card-impact {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #047857;
+  background: #d1fae5;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.opt-card-rationale {
+  font-size: 0.84rem;
+  color: #334155;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.opt-card-footer {
+  background: #fafaf9;
+  border-top: 1px dashed #e7e5e4;
+  padding-top: 8px;
+  font-size: 0.78rem;
+  color: #57534e;
+}
+.opt-tag-feature {
+  color: #44403c;
+  margin-bottom: 4px;
+}
+.opt-example {
+  color: #0f766e;
+  font-weight: 500;
+}
 
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {

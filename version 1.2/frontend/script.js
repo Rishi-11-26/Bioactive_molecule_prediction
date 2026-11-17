@@ -78,13 +78,29 @@ async function initHealthCheck() {
   }
 }
 
+// State for 3D Molecule & Explainability
+let currentMol3D = "";
+let currentAttribution = null;
+let isHighlightActive = false;
+
 // ─── 2. 3D Molecular Viewer (3Dmol.js) ───────────────────────
-function render3DMolecule(mol3dBlock) {
+function render3DMolecule(mol3dBlock, highlightIndices = null) {
   const container = document.getElementById("mol3dContainer");
   if (!container) return;
 
   if (!window.$3Dmol) {
-    container.innerHTML = "<p style='padding:20px; text-align:center; color:#64748b;'>3Dmol.js loading... Please check internet connection.</p>";
+    container.innerHTML = "<div class='spinner' style='margin: 40px auto 10px;'></div><p style='text-align:center; color:#64748b; font-size:0.85rem;'>Loading 3D Molecular Engine...</p>";
+    let attempts = 0;
+    const checkInterval = setInterval(() => {
+      attempts++;
+      if (window.$3Dmol) {
+        clearInterval(checkInterval);
+        render3DMolecule(mol3dBlock, highlightIndices);
+      } else if (attempts >= 15) {
+        clearInterval(checkInterval);
+        container.innerHTML = "<p style='padding:20px; text-align:center; color:#64748b;'>3Dmol.js could not be loaded. Please check your internet connection and refresh the page.</p>";
+      }
+    }, 250);
     return;
   }
 
@@ -100,13 +116,21 @@ function render3DMolecule(mol3dBlock) {
   // Add 3D molecular coordinates in MOL/SDF format
   viewer3D.addModel(mol3dBlock, "sdf");
 
-  // Ball-and-Stick Styling:
-  // - Spheres: Atoms (Jmol/CPK color code)
+  // Standard Ball-and-Stick Styling (Jmol CPK colors):
+  // - Spheres: Atoms
   // - Sticks: Chemical Bonds
   viewer3D.setStyle({}, {
     stick: { radius: 0.15, colorscheme: "Jmol" },
     sphere: { scale: 0.28, colorscheme: "Jmol" }
   });
+
+  // Highlight key contributing atoms with glowing amber spheres if requested
+  if (highlightIndices && highlightIndices.length > 0) {
+    viewer3D.addStyle({ index: highlightIndices }, {
+      sphere: { color: "#f59e0b", scale: 0.52 },
+      stick: { color: "#f59e0b", radius: 0.22 }
+    });
+  }
 
   viewer3D.zoomTo();
   viewer3D.render();
@@ -128,6 +152,99 @@ function render3DMolecule(mol3dBlock) {
       if (btnToggleSpin) btnToggleSpin.textContent = "Resume Rotation";
     }
   };
+}
+
+// ─── 2B. Explainable AI: Render Substructures & Atom Attribution ─────
+function renderXAI(attribution) {
+  const container = document.getElementById("xaiContainer");
+  const chipsList = document.getElementById("xaiSubstructuresList");
+  const btnToggle = document.getElementById("btnToggleAttribution");
+  const btnText   = document.getElementById("btnAttributionText");
+  if (!container || !chipsList) return;
+
+  if (!attribution || !attribution.top_substructures || attribution.top_substructures.length === 0) {
+    container.style.display = "none";
+    return;
+  }
+
+  container.style.display = "block";
+  chipsList.innerHTML = "";
+  if (btnText) btnText.textContent = "✨ Highlight Key Atoms";
+  isHighlightActive = false;
+
+  attribution.top_substructures.forEach((sub) => {
+    const chip = document.createElement("div");
+    chip.className = "xai-chip";
+    chip.title = "Click to focus and highlight these atoms in 3D";
+    chip.innerHTML = `
+      <div class="xai-chip-header">
+        <span class="xai-chip-title">${sub.description}</span>
+        <span class="xai-chip-weight">Importance: ${(sub.importance * 100).toFixed(2)}%</span>
+      </div>
+      <div class="xai-chip-body">
+        <code>${sub.fragment_smiles || 'Fragment'}</code>
+        <span class="xai-chip-count">${sub.atom_indices.length} atoms</span>
+      </div>
+    `;
+
+    // Click chip to highlight its specific atoms in the 3D viewer
+    chip.addEventListener("click", () => {
+      document.querySelectorAll(".xai-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      render3DMolecule(currentMol3D, sub.atom_indices);
+      if (btnText) btnText.textContent = "🔄 Reset CPK Colors";
+      isHighlightActive = true;
+    });
+
+    chipsList.appendChild(chip);
+  });
+
+  if (btnToggle) {
+    btnToggle.onclick = () => {
+      isHighlightActive = !isHighlightActive;
+      if (isHighlightActive) {
+        render3DMolecule(currentMol3D, attribution.highlighted_atom_indices);
+        if (btnText) btnText.textContent = "🔄 Reset CPK Colors";
+      } else {
+        render3DMolecule(currentMol3D, null);
+        document.querySelectorAll(".xai-chip").forEach(c => c.classList.remove("active"));
+        if (btnText) btnText.textContent = "✨ Highlight Key Atoms";
+      }
+    };
+  }
+}
+
+// ─── 2C. Lead Optimization: Render SAR Suggestions for Inactive ─────
+function renderLeadOptimization(suggestions, prediction) {
+  const container = document.getElementById("optContainer");
+  const list = document.getElementById("optSuggestionsList");
+  if (!container || !list) return;
+
+  if (prediction !== "Inactive" || !suggestions || suggestions.length === 0) {
+    container.style.display = "none";
+    return;
+  }
+
+  container.style.display = "block";
+  list.innerHTML = "";
+
+  suggestions.forEach((item, idx) => {
+    const card = document.createElement("div");
+    card.className = "opt-card";
+    card.innerHTML = `
+      <div class="opt-card-header">
+        <span class="opt-card-number">#${idx + 1}</span>
+        <h5 class="opt-card-title">${item.title}</h5>
+        <span class="opt-card-impact">${item.impact}</span>
+      </div>
+      <p class="opt-card-rationale">${item.rationale}</p>
+      <div class="opt-card-footer">
+        <div class="opt-tag-feature">🎯 <strong>Learned Model Driver:</strong> ${item.target_feature}</div>
+        ${item.example_transformation ? `<div class="opt-example">🧪 <strong>Example:</strong> ${item.example_transformation}</div>` : ''}
+      </div>
+    `;
+    list.appendChild(card);
+  });
 }
 
 // ─── 3. Single Molecule Prediction ───────────────────────────
@@ -164,6 +281,10 @@ function initSinglePrediction() {
       if (stateLoading) stateLoading.style.display = "none";
       if (resultBody) resultBody.style.display = "none";
       if (viewer3D) viewer3D.clear();
+      const xaiBox = document.getElementById("xaiContainer");
+      const optBox = document.getElementById("optContainer");
+      if (xaiBox) xaiBox.style.display = "none";
+      if (optBox) optBox.style.display = "none";
     });
   }
 
@@ -241,7 +362,15 @@ function initSinglePrediction() {
       if (smilesEl) smilesEl.textContent = data.smiles || "-";
 
       // 4. Render 3D Model
-      render3DMolecule(data.mol_3d);
+      currentMol3D = data.mol_3d || "";
+      currentAttribution = data.atom_attribution || null;
+      render3DMolecule(currentMol3D);
+
+      // 5. Render Explainable AI (Atom Attribution)
+      renderXAI(data.atom_attribution);
+
+      // 6. Render Lead Optimization Suggestions (if Inactive)
+      renderLeadOptimization(data.lead_optimization, data.prediction);
 
       if (stateLoading) stateLoading.style.display = "none";
       if (resultBody) resultBody.style.display = "block";
