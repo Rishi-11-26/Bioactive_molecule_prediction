@@ -233,9 +233,9 @@ function when3DmolReady(cb, attempts = 0) {
 }
 
 function styleFor(kind) {
-  if (kind === "stick") return { stick: { radius: 0.16, colorscheme: "Jmol" } };
-  if (kind === "sphere") return { sphere: { scale: 0.8, colorscheme: "Jmol" } };
-  return { stick: { radius: 0.13, colorscheme: "Jmol" }, sphere: { scale: 0.24, colorscheme: "Jmol" } };
+  if (kind === "stick") return { stick: { radius: 0.16 } };
+  if (kind === "sphere") return { sphere: { scale: 0.8 } };
+  return { stick: { radius: 0.13 }, sphere: { scale: 0.24 } };
 }
 
 let isViewer3DVisible = true;
@@ -598,10 +598,23 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     viewer3D.setStyle({}, styleFor(currentStyle));
 
     if (highlightIndices && highlightIndices.length) {
+      const highlightSet = new Set(highlightIndices);
+      const model = viewer3D.getModel();
+      if (model && typeof model.getAtoms === "function") {
+        const atoms = model.getAtoms();
+        atoms.forEach(atom => {
+          if (highlightSet.has(atom.index) && atom.style) {
+            if (atom.style.sphere) delete atom.style.sphere.colorscheme;
+            if (atom.style.stick) delete atom.style.stick.colorscheme;
+          }
+        });
+      }
       const hl = currentStyle === "sphere"
-        ? { sphere: { color: "#f59e0b", scale: 1.05 } }
-        : { sphere: { color: "#f59e0b", scale: 0.5 }, stick: { color: "#f59e0b", radius: 0.22 } };
-      viewer3D.addStyle({ index: highlightIndices }, hl);
+        ? { sphere: { color: "#f59e0b", scale: 0.95 } }
+        : currentStyle === "stick"
+          ? { stick: { color: "#f59e0b", radius: 0.22 } }
+          : { sphere: { color: "#f59e0b", scale: 0.38 }, stick: { color: "#f59e0b", radius: 0.18 } };
+      viewer3D.setStyle({ index: highlightIndices }, hl);
     }
 
     viewer3D.zoomTo();
