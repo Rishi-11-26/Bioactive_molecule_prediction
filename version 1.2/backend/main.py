@@ -790,10 +790,14 @@ async def predict_batch(file: UploadFile = File(...)):
     results = []
     total_valid = 0
     total_invalid = 0
+    truncated = False
 
-    for row_num, row in enumerate(reader, start=1):
-        if row_num > MAX_ROWS:
-            break
+    all_rows = list(reader)
+    if len(all_rows) > MAX_ROWS:
+        truncated = True
+        all_rows = all_rows[:MAX_ROWS]
+
+    for row_num, row in enumerate(all_rows, start=1):
 
         smiles = (row.get(smiles_col) or "").strip()
 
@@ -863,6 +867,7 @@ async def predict_batch(file: UploadFile = File(...)):
         "total_rows":    len(results),
         "valid_rows":    total_valid,
         "invalid_rows":  total_invalid,
+        "truncated":     truncated,
         "results":       results,
     }
 

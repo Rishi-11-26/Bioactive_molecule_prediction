@@ -932,13 +932,32 @@ function initBatchPrediction() {
     btnRun.disabled = true;
   });
 
+  const BATCH_ROW_LIMIT = 2000;
+
   function handleFile(file) {
     if (!file.name.toLowerCase().endsWith(".csv")) { showError("Please upload a valid .csv file."); return; }
     batchError.classList.remove("visible");
-    selectedFile = file;
-    fileName.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
-    fileInfo.hidden = false;
-    btnRun.disabled = false;
+
+    // Count data rows client-side before allowing submission
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const lines = e.target.result.split(/\r?\n/).filter(l => l.trim().length > 0);
+      const dataRows = lines.length - 1; // subtract header row
+      if (dataRows > BATCH_ROW_LIMIT) {
+        showError(
+          `Your CSV contains ${dataRows.toLocaleString()} rows — the maximum allowed is ${BATCH_ROW_LIMIT.toLocaleString()} rows. ` +
+          `Please trim your file to ${BATCH_ROW_LIMIT.toLocaleString()} rows or fewer and re-upload.`
+        );
+        fileInfo.hidden = true;
+        btnRun.disabled = true;
+        return;
+      }
+      selectedFile = file;
+      fileName.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB · ${dataRows.toLocaleString()} rows`;
+      fileInfo.hidden = false;
+      btnRun.disabled = false;
+    };
+    reader.readAsText(file);
   }
 
   function renderRows() {
@@ -1014,6 +1033,9 @@ function initBatchPrediction() {
 
       results.hidden = false;
       renderRows();
+      if (data.truncated) {
+        showError("⚠️ Your CSV had more than 2,000 rows. Only the first 2,000 were processed.");
+      }
       toast(`Screened ${total} molecules`);
       results.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
