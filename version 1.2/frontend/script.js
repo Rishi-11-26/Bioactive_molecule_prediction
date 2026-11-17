@@ -36,11 +36,9 @@ let modelsCache = null;
 
 function startApp() {
   refreshIcons();
-  initAmbientMolecules();
   initNav();
   initReveal();
   initCountUp();
-  initHeroViewer();
   initHealthCheck();
   initSinglePrediction();
   initBatchPrediction();
@@ -329,8 +327,8 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     if (!viewer3D) {
       viewer3D = $3Dmol.createViewer(container, {
         backgroundColor: "white",
-        backgroundAlpha: 0,
-        antialias: true
+        backgroundAlpha: 1,
+        antialias: false
       });
 
       // Pause spin immediately when dragging starts WITHOUT running heavy DOM scans
