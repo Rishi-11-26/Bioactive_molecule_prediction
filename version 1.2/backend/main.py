@@ -15,10 +15,20 @@ Endpoints:
 """
 
 import os
+import sys
 import io
 import json
 import csv
 import base64
+
+if sys.platform == 'win32':
+    try:
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 import numpy as np
 import joblib
 import urllib.request
@@ -931,20 +941,73 @@ def models():
 
 
 # ─────────────────────────────────────────────────────────────
+# Multi-page frontend routes
+# ─────────────────────────────────────────────────────────────
+@app.get("/app")
+@app.get("/app/")
+def serve_home_page():
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"), media_type="text/html")
+
+@app.get("/app/predict")
+@app.get("/app/predict/")
+def serve_predict_page():
+    return FileResponse(os.path.join(FRONTEND_DIR, "predict.html"), media_type="text/html")
+
+@app.get("/app/batch")
+@app.get("/app/batch/")
+def serve_batch_page():
+    return FileResponse(os.path.join(FRONTEND_DIR, "batch.html"), media_type="text/html")
+
+@app.get("/app/benchmark")
+@app.get("/app/benchmark/")
+def serve_benchmark_page():
+    return FileResponse(os.path.join(FRONTEND_DIR, "benchmark.html"), media_type="text/html")
+
+@app.get("/app/about")
+@app.get("/app/about/")
+def serve_about_page():
+    return FileResponse(os.path.join(FRONTEND_DIR, "about.html"), media_type="text/html")
+
+# Friendly navigation redirects from top-level routes
+@app.get("/predict")
+def redirect_to_predict():
+    return RedirectResponse(url="/app/predict")
+
+@app.get("/batch")
+def redirect_to_batch():
+    return RedirectResponse(url="/app/batch")
+
+@app.get("/benchmark")
+def redirect_to_benchmark():
+    return RedirectResponse(url="/app/benchmark")
+
+@app.get("/about")
+def redirect_to_about():
+    return RedirectResponse(url="/app/about")
+
+# ─────────────────────────────────────────────────────────────
 # Static file serving for frontend assets
 # ─────────────────────────────────────────────────────────────
+@app.get("/app/style.css")
 @app.get("/style.css")
 def serve_css():
     return FileResponse(os.path.join(FRONTEND_DIR, "style.css"), media_type="text/css")
 
+@app.get("/app/script.js")
 @app.get("/script.js")
 def serve_js():
     return FileResponse(os.path.join(FRONTEND_DIR, "script.js"), media_type="application/javascript")
+
+@app.get("/app/hero-molecule.js")
+@app.get("/hero-molecule.js")
+def serve_hero_molecule():
+    return FileResponse(os.path.join(FRONTEND_DIR, "hero-molecule.js"), media_type="application/javascript")
 
 @app.get("/api.js")
 def serve_api_js():
     return FileResponse(os.path.join(FRONTEND_DIR, "api.js"), media_type="application/javascript")
 
+@app.get("/app/assets/{file_path:path}")
 @app.get("/assets/{file_path:path}")
 def serve_assets(file_path: str):
     full_path = os.path.join(FRONTEND_DIR, "assets", file_path)
@@ -955,9 +1018,11 @@ def serve_assets(file_path: str):
 
 @app.get("/study-guide")
 def get_study_guide():
-    pdf_path = os.path.join(PROJECT_ROOT, "BioPredict_Complete_Study_Guide.pdf")
+    pdf_path = os.path.join(PROJECT_ROOT, "BioPredict_Viva_Defense_Enhancements_Guide.pdf")
+    if not os.path.exists(pdf_path):
+        pdf_path = os.path.join(PROJECT_ROOT, "BioPredict_Complete_Study_Guide.pdf")
     if os.path.exists(pdf_path):
-        return FileResponse(pdf_path, media_type="application/pdf", filename="BioPredict_Complete_Study_Guide.pdf")
+        return FileResponse(pdf_path, media_type="application/pdf", filename="BioPredict_Viva_Defense_Enhancements_Guide.pdf")
     raise HTTPException(status_code=404, detail="Study guide PDF not found.")
 
 
