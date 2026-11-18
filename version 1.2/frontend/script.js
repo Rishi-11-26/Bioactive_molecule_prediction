@@ -178,16 +178,39 @@ function initNav() {
     toggle?.setAttribute("aria-expanded", "false");
   }));
 
-  const sections = ["predict", "batch", "benchmark", "about"].map($).filter(Boolean);
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        links?.querySelectorAll("a").forEach(a =>
-          a.classList.toggle("active", a.dataset.section === e.target.id));
+  // Resolve active page link from URL pathname
+  const currentPath = window.location.pathname.replace(/\/+$/, "") || "/app";
+  const navAnchors = links?.querySelectorAll("a");
+  if (navAnchors && navAnchors.length) {
+    let matched = false;
+    navAnchors.forEach(a => {
+      const page = a.dataset.page;
+      const href = (a.getAttribute("href") || "").replace(/\/+$/, "");
+      const isHome = (currentPath === "/app" || currentPath === "" || currentPath.endsWith("/index.html")) &&
+                     (page === "home" || href === "/app" || href === "/app/index.html");
+      const isOtherMatch = page && (
+        (page === "predict" && currentPath.endsWith("/predict")) ||
+        (page === "batch" && currentPath.endsWith("/batch")) ||
+        (page === "benchmark" && currentPath.endsWith("/benchmark")) ||
+        (page === "about" && currentPath.endsWith("/about"))
+      );
+      if (isHome || isOtherMatch || (href && currentPath === href)) {
+        a.classList.add("active");
+        a.setAttribute("aria-current", "page");
+        matched = true;
+      } else {
+        a.classList.remove("active");
+        a.removeAttribute("aria-current");
       }
     });
-  }, { rootMargin: "-45% 0px -50% 0px" });
-  sections.forEach(s => io.observe(s));
+    if (!matched && (currentPath === "/app" || currentPath === "")) {
+      const homeLink = links.querySelector('[data-page="home"]') || navAnchors[0];
+      if (homeLink) {
+        homeLink.classList.add("active");
+        homeLink.setAttribute("aria-current", "page");
+      }
+    }
+  }
 }
 
 function initReveal() {
@@ -1065,6 +1088,10 @@ function initBatchPrediction() {
 
 /* ─── Benchmark ───────────────────────────────────────────── */
 async function initBenchmark() {
+  const bars = $("benchBars");
+  const tbody = $("cvMetricsBody");
+  if (!bars && !tbody) return;
+
   document.querySelectorAll("#splitSeg .seg-btn").forEach(btn => btn.addEventListener("click", () => {
     document.querySelectorAll("#splitSeg .seg-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
@@ -1076,9 +1103,7 @@ async function initBenchmark() {
     modelsCache = await res.json();
     renderBenchmark("cv");
   } catch (err) {
-    const tbody = $("cvMetricsBody");
     if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="muted-cell">Metrics unavailable — is the API running?</td></tr>`;
-    const bars = $("benchBars");
     if (bars) bars.innerHTML = `<p class="muted-cell">Metrics unavailable.</p>`;
   }
 }
@@ -1091,33 +1116,38 @@ function renderBenchmark(split) {
   const pct = (v) => (v !== undefined && v !== null) ? (v * 100).toFixed(2) + "%" : "—";
 
   const bars = $("benchBars");
-  bars.innerHTML = sorted.map(m => {
-    const win = m.Model === "XGBoost";
-    return `<div class="bar-row ${win ? "winner" : ""}">
-      <span class="bar-name">${win ? '<i data-lucide="crown" class="crown"></i>' : ""}${escapeHtml(m.Model)}</span>
-      <div class="bar-tracks">
-        <div class="bar-track auc"><span data-w="${(m.AUC || 0) * 100}"></span></div>
-        <div class="bar-track acc"><span data-w="${(m.ACC || 0) * 100}"></span></div>
-      </div>
-      <span class="bar-val">${((m.AUC || 0) * 100).toFixed(1)}</span>
-    </div>`;
-  }).join("");
-  refreshIcons();
-  requestAnimationFrame(() => setTimeout(() => {
-    bars.querySelectorAll(".bar-track span").forEach(s => { s.style.width = s.dataset.w + "%"; });
-  }, 60));
+  if (bars) {
+    bars.innerHTML = sorted.map(m => {
+      const win = m.Model === "XGBoost";
+      return `<div class="bar-row ${win ? "winner" : ""}">
+        <span class="bar-name">${win ? '<i data-lucide="crown" class="crown"></i>' : ""}${escapeHtml(m.Model)}</span>
+        <div class="bar-tracks">
+          <div class="bar-track auc"><span data-w="${(m.AUC || 0) * 100}"></span></div>
+          <div class="bar-track acc"><span data-w="${(m.ACC || 0) * 100}"></span></div>
+        </div>
+        <span class="bar-val">${((m.AUC || 0) * 100).toFixed(1)}</span>
+      </div>`;
+    }).join("");
+    refreshIcons();
+    requestAnimationFrame(() => setTimeout(() => {
+      bars.querySelectorAll(".bar-track span").forEach(s => { s.style.width = s.dataset.w + "%"; });
+    }, 60));
+  }
 
-  $("cvMetricsBody").innerHTML = sorted.map(m => {
-    const win = m.Model === "XGBoost";
-    return `<tr class="${win ? "row-winner" : ""}">
-      <td><strong>${escapeHtml(m.Model)}</strong>${win ? '<span class="winner-tag">Best</span>' : ""}</td>
-      <td>${pct(m.ACC)}</td><td>${pct(m.Precision)}</td><td>${pct(m.SEN)}</td>
-      <td>${pct(m.SPC)}</td><td>${pct(m.F1)}</td><td><strong>${pct(m.AUC)}</strong></td></tr>`;
-  }).join("");
+  const cvBody = $("cvMetricsBody");
+  if (cvBody) {
+    cvBody.innerHTML = sorted.map(m => {
+      const win = m.Model === "XGBoost";
+      return `<tr class="${win ? "row-winner" : ""}">
+        <td><strong>${escapeHtml(m.Model)}</strong>${win ? '<span class="winner-tag">Best</span>' : ""}</td>
+        <td>${pct(m.ACC)}</td><td>${pct(m.Precision)}</td><td>${pct(m.SEN)}</td>
+        <td>${pct(m.SPC)}</td><td>${pct(m.F1)}</td><td><strong>${pct(m.AUC)}</strong></td></tr>`;
+    }).join("");
+  }
 
   const best = list.find(m => m.Model === "XGBoost") || sorted[0];
-  $("cmModel").textContent = best.Model;
-  $("cmSplit").textContent = split === "holdout" ? "hold-out test set" : "cross-validation";
+  if ($("cmModel")) $("cmModel").textContent = best.Model;
+  if ($("cmSplit")) $("cmSplit").textContent = split === "holdout" ? "hold-out test set" : "cross-validation";
   let tn = best.TN, fp = best.FP, fn = best.FN, tp = best.TP;
   if (tp === undefined && modelsCache.confusion_matrices) {
     const key = split === "holdout" ? Object.keys(modelsCache.confusion_matrices).find(k => k.includes("holdout")) : "validation_cv";
