@@ -44,7 +44,6 @@ function startApp() {
   initBatchPrediction();
   initBenchmark();
   initLightbox();
-  initChatbot();
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startApp);
@@ -179,40 +178,16 @@ function initNav() {
     toggle?.setAttribute("aria-expanded", "false");
   }));
 
-  // Resolve active page link from URL pathname
-  const currentPath = window.location.pathname.replace(/\/+$/, "") || "/app";
-  const navAnchors = links?.querySelectorAll("a");
-  if (navAnchors && navAnchors.length) {
-    let matched = false;
-    navAnchors.forEach(a => {
-      const page = a.dataset.page;
-      const href = (a.getAttribute("href") || "").replace(/\/+$/, "");
-      const isHome = (currentPath === "/app" || currentPath === "" || currentPath.endsWith("/index.html")) &&
-                     (page === "home" || href === "/app" || href === "/app/index.html");
-      const isOtherMatch = page && (
-        (page === "predict" && currentPath.endsWith("/predict")) ||
-        (page === "batch" && currentPath.endsWith("/batch")) ||
-        (page === "benchmark" && currentPath.endsWith("/benchmark")) ||
-        (page === "bioactivity" && (currentPath.endsWith("/bioactivity-guide") || currentPath.endsWith("/bioactivity") || currentPath.endsWith("/bioactivity.html"))) ||
-        (page === "about" && currentPath.endsWith("/about"))
-      );
-      if (isHome || isOtherMatch || (href && currentPath === href)) {
-        a.classList.add("active");
-        a.setAttribute("aria-current", "page");
-        matched = true;
-      } else {
-        a.classList.remove("active");
-        a.removeAttribute("aria-current");
+  const sections = ["predict", "batch", "benchmark", "about"].map($).filter(Boolean);
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links?.querySelectorAll("a").forEach(a =>
+          a.classList.toggle("active", a.dataset.section === e.target.id));
       }
     });
-    if (!matched && (currentPath === "/app" || currentPath === "")) {
-      const homeLink = links.querySelector('[data-page="home"]') || navAnchors[0];
-      if (homeLink) {
-        homeLink.classList.add("active");
-        homeLink.setAttribute("aria-current", "page");
-      }
-    }
-  }
+  }, { rootMargin: "-45% 0px -50% 0px" });
+  sections.forEach(s => io.observe(s));
 }
 
 function initReveal() {
@@ -231,14 +206,11 @@ function initReveal() {
 }
 
 function animateNumber(el, target, decimals = 0, duration = 1400, suffix = "") {
-  if (!el || typeof el.textContent === "undefined") return;
-  const numTarget = Number(target) || 0;
   const start = performance.now();
   const step = (now) => {
-    if (!el || typeof el.textContent === "undefined") return;
     const t = Math.min(1, (now - start) / duration);
     const eased = 1 - Math.pow(1 - t, 3);
-    el.textContent = (numTarget * eased).toLocaleString(undefined, {
+    el.textContent = (target * eased).toLocaleString(undefined, {
       minimumFractionDigits: decimals, maximumFractionDigits: decimals
     }) + suffix;
     if (t < 1) requestAnimationFrame(step);
@@ -566,10 +538,8 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     if (viewer3D) viewer3D.clear();
     if (emptyEl) {
       emptyEl.hidden = false;
-      const str = emptyEl.querySelector("strong");
-      if (str) str.textContent = "3D model unavailable";
-      const p = emptyEl.querySelector("p");
-      if (p) p.textContent = "A 3D conformer could not be generated for this compound.";
+      emptyEl.querySelector("strong").textContent = "3D model unavailable";
+      emptyEl.querySelector("p").textContent = "A 3D conformer could not be generated for this compound.";
     }
     if (tools) tools.hidden = true;
     if (legend) legend.hidden = true;
@@ -580,10 +550,8 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     if (!ok) {
       if (emptyEl) {
         emptyEl.hidden = false;
-        const str = emptyEl.querySelector("strong");
-        if (str) str.textContent = "3D engine failed to load";
-        const p = emptyEl.querySelector("p");
-        if (p) p.textContent = "Check your internet connection and refresh the page.";
+        emptyEl.querySelector("strong").textContent = "3D engine failed to load";
+        emptyEl.querySelector("p").textContent = "Check your internet connection and refresh the page.";
       }
       return;
     }
@@ -747,10 +715,7 @@ function renderXAI(attribution) {
   }
 }
 
-/* ─── Lead optimisation & Active Application Suggestions ───────────── */
-let cachedActiveSuggestions = [];
-let showAllActiveApps = false;
-
+/* ─── Lead optimisation ───────────────────────────────────── */
 function renderLeadOptimization(suggestions, prediction) {
   const container = $("optContainer");
   const list = $("optSuggestionsList");
@@ -773,73 +738,22 @@ function renderLeadOptimization(suggestions, prediction) {
     </article>`).join("");
 }
 
-function renderActiveApplications(suggestions, prediction) {
-  const container = $("activeAppContainer");
-  const list = $("activeAppList");
-  if (!container || !list) return;
-  if (prediction !== "Active" || !suggestions?.length) {
-    container.hidden = true;
-    return;
-  }
-
-  container.hidden = false;
-  // Display strictly the top 3 most promising applications
-  const displayList = suggestions.slice(0, 3);
-
-  list.innerHTML = displayList.map((item, idx) => `
-    <article class="opt-card app-card top-rec" style="animation: rise .5s ${idx * 80}ms var(--ease) both">
-      <div class="opt-card-header">
-        <span class="opt-card-number app-rank">#${idx + 1}</span>
-        <h4 class="opt-card-title">${escapeHtml(item.title)}</h4>
-        <span class="app-suitability-badge badge-top">
-          <i data-lucide="star"></i> Top Match (${item.suitability_score}%)
-        </span>
-      </div>
-      <div class="app-domain"><i data-lucide="cross"></i> ${escapeHtml(item.domain)}</div>
-      <p class="opt-card-rationale">${escapeHtml(item.rationale)}</p>
-      <div class="app-indications">
-        <strong>Target Conditions:</strong> ${escapeHtml(item.target_conditions)}
-      </div>
-      <div class="opt-card-footer app-footer">
-        <div><strong>RDKit Evidence:</strong> ${escapeHtml(item.rdkit_evidence)}</div>
-        <div><strong>Reference Drugs:</strong> ${escapeHtml(item.reference_drugs)}</div>
-      </div>
-    </article>`).join("");
-
-  if (window.lucide && typeof lucide.createIcons === "function") {
-    lucide.createIcons();
-  }
-}
-
 /* ─── Single prediction ───────────────────────────────────── */
-function setVerdict(prediction, molName) {
-  const banner = $("verdictBanner");
-  const title = $("verdictTitle");
-  const subtext = $("verdictSubtext");
-  const icon = $("verdictIcon");
-  const iconBox = $("verdictIconBox");
-  const isActive = prediction === "Active";
-
-  if (banner) {
-    banner.className = `verdict-banner ${isActive ? "verdict-active" : "verdict-inactive"}`;
+function setGauge(value, isActive) {
+  const fill = $("gaugeFill");
+  const label = $("gaugeValue");
+  const gauge = $("gauge");
+  const circumference = 2 * Math.PI * 50;
+  if (fill) {
+    fill.style.strokeDasharray = `${circumference}`;
+    fill.style.strokeDashoffset = `${circumference}`;
+    fill.style.stroke = isActive ? "var(--primary)" : "var(--rose)";
+    requestAnimationFrame(() => setTimeout(() => {
+      fill.style.strokeDashoffset = `${circumference * (1 - value)}`;
+    }, 60));
   }
-  if (title) {
-    title.textContent = isActive ? "BIOACTIVE (Active COX-2 Lead)" : "INACTIVE (Non-Inhibitory)";
-  }
-  if (subtext) {
-    subtext.textContent = isActive
-      ? "Predicted potent COX-2 inhibition (IC50 ≤ 1,000 nM). Molecule exhibits characteristic pharmacophore anchors."
-      : "Predicted inactive or weak affinity (IC50 > 1,000 nM). Explore lead optimization suggestions below.";
-  }
-  if (icon) {
-    icon.setAttribute("data-lucide", isActive ? "shield-check" : "alert-circle");
-  }
-  if (iconBox) {
-    iconBox.className = `verdict-icon-box ${isActive ? "box-active" : "box-inactive"}`;
-  }
-  if (window.lucide && typeof lucide.createIcons === "function") {
-    lucide.createIcons();
-  }
+  if (gauge) gauge.style.setProperty("--value", value);
+  if (label) animateNumber(label, value * 100, 1, 1100, "%");
 }
 
 function initSinglePrediction() {
@@ -852,15 +766,10 @@ function initSinglePrediction() {
   const loadingStep = $("loadingStep");
   if (!input || !btnPredict) return;
 
-  const showError = (msg) => {
-    if (errorBox) {
-      errorBox.textContent = msg;
-      errorBox.classList.add("visible");
-    }
-  };
-  const hideError = () => {
-    if (errorBox) errorBox.classList.remove("visible");
-  };
+  let lastPrediction = null;
+
+  const showError = (msg) => { errorBox.textContent = msg; errorBox.classList.add("visible"); };
+  const hideError = () => errorBox.classList.remove("visible");
 
   $("btnExample")?.addEventListener("click", () => {
     input.value = EXAMPLES[exampleIdx++ % EXAMPLES.length];
@@ -875,25 +784,23 @@ function initSinglePrediction() {
   }));
 
   $("btnClear")?.addEventListener("click", () => {
+    lastPrediction = null;
     input.value = "";
     hideError();
-    if (empty) empty.hidden = false;
-    if (body) body.hidden = true;
-    if (loading) loading.hidden = true;
+    empty.hidden = false;
+    body.hidden = true;
+    loading.hidden = true;
     if (viewer3D) { viewer3D.clear(); viewer3D.render(); }
     const stageEmpty = $("stageEmpty");
     if (stageEmpty) {
       stageEmpty.hidden = false;
-      const str = stageEmpty.querySelector("strong");
-      if (str) str.textContent = "No structure loaded";
-      const p = stageEmpty.querySelector("p");
-      if (p) p.textContent = "Run a prediction to render a force-field optimised 3D conformer.";
+      stageEmpty.querySelector("strong").textContent = "No structure loaded";
+      stageEmpty.querySelector("p").textContent = "Run a prediction to render a force-field optimised 3D conformer.";
     }
-    if ($("viewerTools")) $("viewerTools").hidden = true;
-    if ($("atomLegend")) $("atomLegend").hidden = true;
-    if ($("xaiContainer")) $("xaiContainer").hidden = true;
-    if ($("optContainer")) $("optContainer").hidden = true;
-    if ($("activeAppContainer")) $("activeAppContainer").hidden = true;
+    $("viewerTools").hidden = true;
+    $("atomLegend").hidden = true;
+    $("xaiContainer").hidden = true;
+    $("optContainer").hidden = true;
     if ($("targetSpecsCard")) $("targetSpecsCard").hidden = false;
   });
 
@@ -924,10 +831,54 @@ function initSinglePrediction() {
   }));
 
   $("btnCopySmiles")?.addEventListener("click", async () => {
-    const smilesText = $("resSmiles")?.textContent;
-    if (smilesText && smilesText !== "—") {
-      try { await navigator.clipboard.writeText(smilesText); toast("SMILES copied"); }
-      catch { toast("Copy not available"); }
+    try { await navigator.clipboard.writeText($("resSmiles").textContent); toast("SMILES copied"); }
+    catch { toast("Copy not available"); }
+  });
+
+  const btnExportDossier = $("btnExportDossier");
+  btnExportDossier?.addEventListener("click", async () => {
+    if (!lastPrediction || !lastPrediction.smiles) return;
+    const origHtml = btnExportDossier.innerHTML;
+    btnExportDossier.disabled = true;
+    btnExportDossier.innerHTML = `<i data-lucide="loader-circle" class="spin"></i> <span>Generating Dossier…</span>`;
+    if (window.lucide) window.lucide.createIcons();
+
+    try {
+      const res = await fetch(`${API_BASE}/export_dossier`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smiles: lastPrediction.smiles,
+          molecule_name: lastPrediction.molecule_name || $("resMolName")?.textContent || "Compound",
+          prediction: lastPrediction.prediction,
+          score: lastPrediction.score,
+          atom_attribution: lastPrediction.atom_attribution,
+          lead_optimization: lastPrediction.lead_optimization
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || "Failed to generate screening dossier.");
+      }
+
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const downloadLink = document.createElement("a");
+      const safeName = (lastPrediction.molecule_name || "Compound").replace(/[^a-zA-Z0-9_-]/g, "_");
+      downloadLink.href = blobUrl;
+      downloadLink.download = `BioPredict_Dossier_${safeName}.pdf`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      window.URL.revokeObjectURL(blobUrl);
+      toast("Screening dossier PDF downloaded!");
+    } catch (err) {
+      showError(err.message || "Failed to export screening dossier.");
+    } finally {
+      btnExportDossier.disabled = false;
+      btnExportDossier.innerHTML = origHtml;
+      if (window.lucide) window.lucide.createIcons();
     }
   });
 
@@ -938,18 +889,14 @@ function initSinglePrediction() {
     if (!value) { showError("Please enter a molecule name or SMILES string."); input.focus(); return; }
     hideError();
 
-    const stageEmpty = $("stageEmpty");
-    if (stageEmpty) stageEmpty.hidden = true;
-    if (loading) loading.hidden = false;
+    $("stageEmpty").hidden = true;
+    loading.hidden = false;
     btnPredict.disabled = true;
     setButtonContent(btnPredict, "loader-circle", "Analysing…");
     btnPredict.querySelector("svg")?.classList.add("spin");
     let s = 0;
-    if (loadingStep) loadingStep.textContent = steps[0];
-    const stepTimer = setInterval(() => {
-      s = (s + 1) % steps.length;
-      if (loadingStep) loadingStep.textContent = steps[s];
-    }, 900);
+    loadingStep.textContent = steps[0];
+    const stepTimer = setInterval(() => { s = (s + 1) % steps.length; loadingStep.textContent = steps[s]; }, 900);
 
     try {
       const res = await fetch(`${API_BASE}/predict`, {
@@ -959,58 +906,42 @@ function initSinglePrediction() {
       });
       const data = await res.json();
       if (!res.ok || data.detail) throw new Error(data.detail || `Server error (${res.status})`);
+      lastPrediction = data;
 
       const isActive = data.prediction === "Active";
-      setVerdict(data.prediction, data.molecule_name || value);
-
       const badge = $("predBadge");
-      if (badge) {
-        badge.textContent = data.prediction;
-        badge.className = `badge ${isActive ? "badge-active" : "badge-inactive"}`;
-      }
+      badge.textContent = data.prediction;
+      badge.className = `badge ${isActive ? "badge-active" : "badge-inactive"}`;
 
-      if ($("resMolName")) $("resMolName").textContent = data.molecule_name || value;
-      if ($("resModel")) $("resModel").textContent = data.model || "XGBoost";
+      $("resMolName").textContent = data.molecule_name || value;
+      $("resModel").textContent = data.model || "XGBoost";
       const info = data.mol_info || {};
-      if ($("resFormula")) $("resFormula").textContent = info.formula || "—";
-      if ($("resMW")) $("resMW").textContent = info.mol_weight ? `${info.mol_weight} g/mol` : "—";
-      if ($("resAtoms")) $("resAtoms").textContent = info.num_atoms ?? "—";
-      if ($("resBonds")) $("resBonds").textContent = info.num_bonds ?? "—";
-      if ($("resSmiles")) $("resSmiles").textContent = data.smiles || "—";
+      $("resFormula").textContent = info.formula || "—";
+      $("resMW").textContent = info.mol_weight ? `${info.mol_weight} g/mol` : "—";
+      $("resAtoms").textContent = info.num_atoms ?? "—";
+      $("resBonds").textContent = info.num_bonds ?? "—";
+      $("resSmiles").textContent = data.smiles || "—";
 
-      if (empty) empty.hidden = true;
-      if (body) {
-        body.hidden = false;
-        body.style.animation = "none";
-        void body.offsetWidth;
-        body.style.animation = "rise .6s var(--ease) both";
-      }
+      empty.hidden = true;
+      body.hidden = false;
+      body.style.animation = "none";
+      void body.offsetWidth;
+      body.style.animation = "rise .6s var(--ease) both";
+
+      const score = (data.score !== null && data.score !== undefined) ? Number(data.score) : 0;
+      setGauge(Math.max(0, Math.min(1, score)), isActive);
 
       currentMol3D = data.mol_3d || "";
       currentAttribution = data.atom_attribution || null;
       render3DMolecule(currentMol3D);
       renderXAI(currentAttribution);
       renderLeadOptimization(data.lead_optimization, data.prediction);
-      renderActiveApplications(data.active_suggestions, data.prediction);
-
-      // Update AI Assistant live context
-      window.currentPredictionContext = {
-        molecule_name: data.molecule_name || value,
-        smiles: data.smiles || value,
-        prediction: data.prediction,
-        mol_info: data.mol_info || {},
-        top_substructures: data.atom_attribution?.top_substructures || []
-      };
-      const contextBadge = $("chatMolContextBadge");
-      if (contextBadge) {
-        contextBadge.textContent = `${data.molecule_name || value} · ${data.prediction}`;
-      }
     } catch (err) {
       showError(err.message || "Failed to predict molecule.");
-      if (!currentMol3D && $("stageEmpty")) $("stageEmpty").hidden = false;
+      if (!currentMol3D) $("stageEmpty").hidden = false;
     } finally {
       clearInterval(stepTimer);
-      if (loading) loading.hidden = true;
+      loading.hidden = true;
       btnPredict.disabled = false;
       setButtonContent(btnPredict, "zap", "Predict bioactivity");
     }
@@ -1033,12 +964,7 @@ function initBatchPrediction() {
   let selectedFile = null;
   let activeFilter = "all";
 
-  const showError = (msg) => {
-    if (batchError) {
-      batchError.textContent = msg;
-      batchError.classList.add("visible");
-    }
-  };
+  const showError = (msg) => { batchError.textContent = msg; batchError.classList.add("visible"); };
 
   $("btnBrowse").addEventListener("click", (e) => { e.stopPropagation(); fileInput.click(); });
   dropZone.addEventListener("click", () => fileInput.click());
@@ -1078,9 +1004,9 @@ function initBatchPrediction() {
         return;
       }
       selectedFile = file;
-      if (fileName) fileName.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB · ${dataRows.toLocaleString()} rows`;
-      if (fileInfo) fileInfo.hidden = false;
-      if (btnRun) btnRun.disabled = false;
+      fileName.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB · ${dataRows.toLocaleString()} rows`;
+      fileInfo.hidden = false;
+      btnRun.disabled = false;
     };
     reader.readAsText(file);
   }
@@ -1094,7 +1020,7 @@ function initBatchPrediction() {
       return !q || String(r.smiles).toLowerCase().includes(q);
     });
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="4" class="muted-cell">No rows match this filter.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="muted-cell">No rows match this filter.</td></tr>`;
       return;
     }
     tbody.innerHTML = rows.slice(0, 500).map((r, i) => {
@@ -1102,12 +1028,15 @@ function initBatchPrediction() {
         ? `<span class="st-ok">Valid</span>`
         : `<span class="st-err" title="${escapeHtml(r.error || "Invalid SMILES")}">Error</span>`;
       const smiles = String(r.smiles || "");
-      const short = smiles.length > 38 ? escapeHtml(smiles.slice(0, 38)) + "…" : escapeHtml(smiles);
+      const short = smiles.length > 34 ? escapeHtml(smiles.slice(0, 34)) + "…" : escapeHtml(smiles);
       const pred = r.prediction
         ? `<span class="badge badge-sm ${r.prediction === "Active" ? "badge-active" : "badge-inactive"}">${r.prediction}</span>` : "—";
+      const score = (r.score !== null && r.score !== undefined)
+        ? `<div class="score-cell ${r.prediction === "Active" ? "" : "inactive"}"><div class="score-track"><span style="width:${(r.score * 100).toFixed(1)}%"></span></div>${(r.score * 100).toFixed(1)}%</div>`
+        : "—";
       return `<tr class="row-in" style="animation-delay:${Math.min(i, 20) * 25}ms">
         <td>${r.row}</td><td><code title="${escapeHtml(smiles)}">${short}</code></td>
-        <td>${status}</td><td>${pred}</td></tr>`;
+        <td>${status}</td><td>${pred}</td><td>${score}</td></tr>`;
     }).join("");
   }
 
@@ -1172,9 +1101,9 @@ function initBatchPrediction() {
   $("btnDownload").addEventListener("click", () => {
     if (!batchDataCache?.results) return;
     const rows = [
-      ["Row", "SMILES", "Status", "Bioactivity_Verdict", "Error"],
+      ["Row", "SMILES", "Status", "Prediction", "Confidence_Score", "Error"],
       ...batchDataCache.results.map(r => [
-        r.row, `"${r.smiles}"`, r.status, r.prediction || "", `"${r.error || ""}"`
+        r.row, `"${r.smiles}"`, r.status, r.prediction || "", r.score ?? "", `"${r.error || ""}"`
       ])
     ];
     const blob = new Blob([rows.map(e => e.join(",")).join("\n")], { type: "text/csv" });
@@ -1187,10 +1116,6 @@ function initBatchPrediction() {
 
 /* ─── Benchmark ───────────────────────────────────────────── */
 async function initBenchmark() {
-  const bars = $("benchBars");
-  const tbody = $("cvMetricsBody");
-  if (!bars && !tbody) return;
-
   document.querySelectorAll("#splitSeg .seg-btn").forEach(btn => btn.addEventListener("click", () => {
     document.querySelectorAll("#splitSeg .seg-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
@@ -1202,7 +1127,9 @@ async function initBenchmark() {
     modelsCache = await res.json();
     renderBenchmark("cv");
   } catch (err) {
+    const tbody = $("cvMetricsBody");
     if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="muted-cell">Metrics unavailable — is the API running?</td></tr>`;
+    const bars = $("benchBars");
     if (bars) bars.innerHTML = `<p class="muted-cell">Metrics unavailable.</p>`;
   }
 }
@@ -1215,38 +1142,33 @@ function renderBenchmark(split) {
   const pct = (v) => (v !== undefined && v !== null) ? (v * 100).toFixed(2) + "%" : "—";
 
   const bars = $("benchBars");
-  if (bars) {
-    bars.innerHTML = sorted.map(m => {
-      const win = m.Model === "XGBoost";
-      return `<div class="bar-row ${win ? "winner" : ""}">
-        <span class="bar-name">${win ? '<i data-lucide="crown" class="crown"></i>' : ""}${escapeHtml(m.Model)}</span>
-        <div class="bar-tracks">
-          <div class="bar-track auc"><span data-w="${(m.AUC || 0) * 100}"></span></div>
-          <div class="bar-track acc"><span data-w="${(m.ACC || 0) * 100}"></span></div>
-        </div>
-        <span class="bar-val">${((m.AUC || 0) * 100).toFixed(1)}</span>
-      </div>`;
-    }).join("");
-    refreshIcons();
-    requestAnimationFrame(() => setTimeout(() => {
-      bars.querySelectorAll(".bar-track span").forEach(s => { s.style.width = s.dataset.w + "%"; });
-    }, 60));
-  }
+  bars.innerHTML = sorted.map(m => {
+    const win = m.Model === "XGBoost";
+    return `<div class="bar-row ${win ? "winner" : ""}">
+      <span class="bar-name">${win ? '<i data-lucide="crown" class="crown"></i>' : ""}${escapeHtml(m.Model)}</span>
+      <div class="bar-tracks">
+        <div class="bar-track auc"><span data-w="${(m.AUC || 0) * 100}"></span></div>
+        <div class="bar-track acc"><span data-w="${(m.ACC || 0) * 100}"></span></div>
+      </div>
+      <span class="bar-val">${((m.AUC || 0) * 100).toFixed(1)}</span>
+    </div>`;
+  }).join("");
+  refreshIcons();
+  requestAnimationFrame(() => setTimeout(() => {
+    bars.querySelectorAll(".bar-track span").forEach(s => { s.style.width = s.dataset.w + "%"; });
+  }, 60));
 
-  const cvBody = $("cvMetricsBody");
-  if (cvBody) {
-    cvBody.innerHTML = sorted.map(m => {
-      const win = m.Model === "XGBoost";
-      return `<tr class="${win ? "row-winner" : ""}">
-        <td><strong>${escapeHtml(m.Model)}</strong>${win ? '<span class="winner-tag">Best</span>' : ""}</td>
-        <td>${pct(m.ACC)}</td><td>${pct(m.Precision)}</td><td>${pct(m.SEN)}</td>
-        <td>${pct(m.SPC)}</td><td>${pct(m.F1)}</td><td><strong>${pct(m.AUC)}</strong></td></tr>`;
-    }).join("");
-  }
+  $("cvMetricsBody").innerHTML = sorted.map(m => {
+    const win = m.Model === "XGBoost";
+    return `<tr class="${win ? "row-winner" : ""}">
+      <td><strong>${escapeHtml(m.Model)}</strong>${win ? '<span class="winner-tag">Best</span>' : ""}</td>
+      <td>${pct(m.ACC)}</td><td>${pct(m.Precision)}</td><td>${pct(m.SEN)}</td>
+      <td>${pct(m.SPC)}</td><td>${pct(m.F1)}</td><td><strong>${pct(m.AUC)}</strong></td></tr>`;
+  }).join("");
 
   const best = list.find(m => m.Model === "XGBoost") || sorted[0];
-  if ($("cmModel")) $("cmModel").textContent = best.Model;
-  if ($("cmSplit")) $("cmSplit").textContent = split === "holdout" ? "hold-out test set" : "cross-validation";
+  $("cmModel").textContent = best.Model;
+  $("cmSplit").textContent = split === "holdout" ? "hold-out test set" : "cross-validation";
   let tn = best.TN, fp = best.FP, fn = best.FN, tp = best.TP;
   if (tp === undefined && modelsCache.confusion_matrices) {
     const key = split === "holdout" ? Object.keys(modelsCache.confusion_matrices).find(k => k.includes("holdout")) : "validation_cv";
@@ -1264,16 +1186,12 @@ function initLightbox() {
   const dlg = $("lightbox");
   if (!dlg) return;
   document.querySelectorAll(".fig").forEach(fig => fig.addEventListener("click", () => {
-    const img = $("lightboxImg");
-    if (img) {
-      img.src = fig.dataset.src;
-      img.alt = fig.dataset.title;
-    }
-    const title = $("lightboxTitle");
-    if (title) title.textContent = fig.dataset.title;
+    $("lightboxImg").src = fig.dataset.src;
+    $("lightboxImg").alt = fig.dataset.title;
+    $("lightboxTitle").textContent = fig.dataset.title;
     dlg.showModal();
   }));
-  $("lightboxClose")?.addEventListener("click", () => dlg.close());
+  $("lightboxClose").addEventListener("click", () => dlg.close());
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
 }
 
@@ -1285,122 +1203,4 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-/* ─── BioPredict Molecular AI Assistant ───────────────────── */
-function initChatbot() {
-  const fab = $("chatFab");
-  const drawer = $("chatDrawer");
-  const btnClose = $("btnCloseChat");
-  const btnClear = $("btnClearChat");
-  const form = $("chatForm");
-  const input = $("chatInput");
-  const messagesBox = $("chatMessages");
-  if (!fab || !drawer) return;
-
-  const toggleDrawer = (open) => {
-    const isOpening = (typeof open === "boolean") ? open : drawer.hidden;
-    drawer.hidden = !isOpening;
-    drawer.setAttribute("aria-hidden", String(!isOpening));
-    if (isOpening) {
-      if (input) input.focus();
-      scrollChatBottom();
-    }
-  };
-
-  fab.addEventListener("click", () => toggleDrawer());
-  btnClose?.addEventListener("click", () => toggleDrawer(false));
-
-  btnClear?.addEventListener("click", () => {
-    if (!messagesBox) return;
-    messagesBox.innerHTML = `
-      <div class="chat-bubble bot">
-        <p>👋 Conversation cleared. Ask me anything about the analyzed compound, COX-2 active site residues, or lead optimization!</p>
-      </div>`;
-  });
-
-  const scrollChatBottom = () => {
-    if (messagesBox) {
-      messagesBox.scrollTop = messagesBox.scrollHeight;
-    }
-  };
-
-  // Quick Chips
-  document.querySelectorAll(".chat-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const q = chip.dataset.question;
-      if (q && input) {
-        input.value = q;
-        form?.dispatchEvent(new Event("submit", { cancelable: true }));
-      }
-    });
-  });
-
-  function formatAiMarkdown(text) {
-    if (!text) return "";
-    let safe = escapeHtml(text);
-    // Bold: **text**
-    safe = safe.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    // Bullet lists
-    const lines = safe.split("\n");
-    let inList = false;
-    const htmlLines = [];
-    for (const l of lines) {
-      const trimmed = l.trim();
-      if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
-        if (!inList) { htmlLines.push("<ul>"); inList = true; }
-        htmlLines.push(`<li>${trimmed.substring(2)}</li>`);
-      } else {
-        if (inList) { htmlLines.push("</ul>"); inList = false; }
-        if (trimmed.length > 0) {
-          htmlLines.push(`<p>${trimmed}</p>`);
-        }
-      }
-    }
-    if (inList) htmlLines.push("</ul>");
-    return htmlLines.join("");
-  }
-
-  form?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const text = (input?.value || "").trim();
-    if (!text) return;
-    input.value = "";
-
-    // Append user message
-    const userBubble = document.createElement("div");
-    userBubble.className = "chat-bubble user";
-    userBubble.textContent = text;
-    messagesBox.appendChild(userBubble);
-
-    // Append loading placeholder
-    const loadingBubble = document.createElement("div");
-    loadingBubble.className = "chat-bubble bot loading-bubble";
-    loadingBubble.innerHTML = `<span class="chat-dot"></span><span class="chat-dot"></span><span class="chat-dot"></span><span>Analyzing chemistry…</span>`;
-    messagesBox.appendChild(loadingBubble);
-    scrollChatBottom();
-
-    try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          molecule_context: window.currentPredictionContext || null
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Unable to reach molecular AI assistant.");
-      }
-      loadingBubble.className = "chat-bubble bot";
-      loadingBubble.innerHTML = formatAiMarkdown(data.reply);
-    } catch (err) {
-      loadingBubble.className = "chat-bubble bot";
-      loadingBubble.innerHTML = `<p style="color: var(--rose);">⚠️ ${escapeHtml(err.message)}</p>`;
-    } finally {
-      scrollChatBottom();
-      refreshIcons();
-    }
-  });
 }
