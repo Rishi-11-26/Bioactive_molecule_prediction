@@ -60,6 +60,17 @@ PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+# Load environment variables from .env (API keys are never hardcoded)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+    load_dotenv(os.path.join(CURRENT_DIR, ".env"))
+    load_dotenv()
+except Exception:
+    pass
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+
 MODEL_DIR = os.path.join(CURRENT_DIR, "model")
 MODEL_PATH = os.path.join(MODEL_DIR, "best_model.pkl")
 METADATA_PATH = os.path.join(MODEL_DIR, "metadata.json")
@@ -873,6 +884,127 @@ def predict(request: PredictRequest):
         "lead_optimization": lead_optimization,
         "active_suggestions": active_suggestions
     }
+
+
+# ── AI Molecular Chatbot Endpoint ─────────────────────────────────────────────
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    molecule_context: Optional[dict] = None
+    history: Optional[list[ChatMessage]] = None
+
+
+SYSTEM_PROMPT = """You are BioPredict AI, an intelligent, helpful, and versatile scientific AI assistant built into the BioPredict Virtual Screening Platform.
+
+Your primary scientific domain is computational chemistry, molecular drug discovery, and machine learning (specifically COX-2 virtual screening, RDKit descriptors, Morgan fingerprints, and XGBoost classification). However, you operate as a normal, versatile, and highly helpful AI assistant capable of answering most questions with minimal restrictions.
+
+Guidelines:
+1. Be helpful, friendly, articulate, and accurate across all topics. Answer broad questions naturally without rigid refusal rules.
+2. When asked about this platform or project (e.g., "who are the real users of this", "what is this platform for", "how does virtual screening work", "what are the clinical applications"):
+   - Provide comprehensive, insightful, and practical answers.
+   - For user inquiries, explain that primary users include medicinal chemists, computational biologists, academic pharmacology researchers, biotechnology drug discovery teams, university students, and clinicians researching targeted anti-inflammatory therapeutics.
+3. When a molecule is currently being analyzed or present in context, leverage its specific structural descriptors (MW, LogP, TPSA, SMILES, functional groups) and bioactivity prediction to provide rich, grounded domain insights.
+4. If asked general science, chemistry, biology, machine learning, technology, or general knowledge questions, answer them thoughtfully and concisely.
+5. Format your answers clearly using Markdown (bullet points, bold key terms, concise paragraphs). Keep responses informative and digestible (typically 2 to 4 paragraphs unless more detail is requested).
+"""
+
+
+@app.post("/api/chat")
+async def chat_with_ai(request: ChatRequest):
+    """
+    Versatile AI assistant grounded with live molecule context and scientific expertise.
+    """
+    user_msg = request.message.strip()
+    if not user_msg:
+        raise HTTPException(status_code=422, detail="Message cannot be empty.")
+
+    api_key = os.environ.get("GEMINI_API_KEY", GEMINI_API_KEY).strip()
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API Key is not configured. Please add GEMINI_API_KEY to your .env file."
+        )
+
+    # Build contextual prompt with current molecule data if available
+    context_str = ""
+    ctx = request.molecule_context or {}
+    if ctx and (ctx.get("smiles") or ctx.get("molecule_name")):
+        mol_name = ctx.get("molecule_name") or "Compound"
+        smiles = ctx.get("smiles", "Unknown")
+        pred = ctx.get("prediction", "Unknown")
+        info = ctx.get("mol_info") or {}
+        subs = ctx.get("top_substructures") or []
+        subs_text = ", ".join([f"{s.get('description', '')} ({s.get('fragment_smiles', '')})" for s in subs[:2]]) if subs else "Standard pharmacophore profile"
+        
+        context_str = f"""
+[CURRENT MOLECULE UNDER INSPECTION]:
+- Compound Name: {mol_name}
+- Canonical SMILES: {smiles}
+- Bioactivity Verdict: {pred} against COX-2
+- Molecular Formula: {info.get('formula', '—')} | Molecular Weight: {info.get('mol_weight', '—')} g/mol
+- Heavy Atoms: {info.get('num_atoms', '—')} | Bonds: {info.get('num_bonds', '—')}
+- Key XAI Pharmacophore Drivers: {subs_text}
+"""
+
+    full_prompt = f"{SYSTEM_PROMPT}\n\n{context_str}\n\n[USER QUESTION]: {user_msg}\n\n[YOUR RESPONSE]:"
+
+    # 1. First attempt: Direct REST call via Python standard library urllib (Zero external pip dependencies)
+    direct_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": full_prompt}]}],
+        "generationConfig": {
+            "temperature": 0.35,
+            "maxOutputTokens": 800
+        }
+    }
+    json_bytes = json.dumps(payload).encode("utf-8")
+    http_req = urllib.request.Request(
+        direct_url,
+        data=json_bytes,
+        headers={"Content-Type": "application/json"}
+    )
+
+    try:
+        with urllib.request.urlopen(http_req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidates = data.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if parts:
+                    return {"reply": parts[0].get("text", "").strip()}
+            return {"reply": "Unable to generate a scientific response at this moment."}
+    except urllib.error.HTTPError as http_err:
+        err_body = http_err.read().decode("utf-8", errors="ignore")
+        if http_err.code == 403 or "API_KEY" in err_body:
+            raise HTTPException(status_code=403, detail="Gemini authentication failure. Please check your GEMINI_API_KEY.")
+        elif http_err.code == 503 or "UNAVAILABLE" in err_body:
+            raise HTTPException(status_code=503, detail="Gemini service is temporarily busy. Please retry in a moment.")
+        # If model name failed, try SDK fallback below
+    except Exception:
+        pass
+
+    # 2. Second attempt: Fallback to google.genai SDK if installed
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=full_prompt
+        )
+        reply_text = response.text.strip() if response and response.text else "Unable to generate response."
+        return {"reply": reply_text}
+    except Exception as e:
+        err_msg = str(e)
+        if "API_KEY" in err_msg or "403" in err_msg:
+            raise HTTPException(status_code=403, detail="Gemini authentication failure. Please check your GEMINI_API_KEY.")
+        elif "503" in err_msg or "UNAVAILABLE" in err_msg:
+            raise HTTPException(status_code=503, detail="Gemini service is temporarily experiencing high demand. Please try again.")
+        else:
+            raise HTTPException(status_code=500, detail=f"AI Assistant Error: {err_msg}")
 
 
 @app.post("/predict_batch")

@@ -1,4 +1,15 @@
-﻿venv/
 __pycache__/
-*.pyc
-!version 2/backend/*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.env
+.env.*
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

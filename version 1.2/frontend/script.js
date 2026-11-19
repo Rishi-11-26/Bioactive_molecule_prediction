@@ -44,6 +44,7 @@ function startApp() {
   initBatchPrediction();
   initBenchmark();
   initLightbox();
+  initChatbot();
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startApp);
@@ -192,6 +193,7 @@ function initNav() {
         (page === "predict" && currentPath.endsWith("/predict")) ||
         (page === "batch" && currentPath.endsWith("/batch")) ||
         (page === "benchmark" && currentPath.endsWith("/benchmark")) ||
+        (page === "bioactivity" && (currentPath.endsWith("/bioactivity-guide") || currentPath.endsWith("/bioactivity") || currentPath.endsWith("/bioactivity.html"))) ||
         (page === "about" && currentPath.endsWith("/about"))
       );
       if (isHome || isOtherMatch || (href && currentPath === href)) {
@@ -229,11 +231,14 @@ function initReveal() {
 }
 
 function animateNumber(el, target, decimals = 0, duration = 1400, suffix = "") {
+  if (!el || typeof el.textContent === "undefined") return;
+  const numTarget = Number(target) || 0;
   const start = performance.now();
   const step = (now) => {
+    if (!el || typeof el.textContent === "undefined") return;
     const t = Math.min(1, (now - start) / duration);
     const eased = 1 - Math.pow(1 - t, 3);
-    el.textContent = (target * eased).toLocaleString(undefined, {
+    el.textContent = (numTarget * eased).toLocaleString(undefined, {
       minimumFractionDigits: decimals, maximumFractionDigits: decimals
     }) + suffix;
     if (t < 1) requestAnimationFrame(step);
@@ -561,8 +566,10 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     if (viewer3D) viewer3D.clear();
     if (emptyEl) {
       emptyEl.hidden = false;
-      emptyEl.querySelector("strong").textContent = "3D model unavailable";
-      emptyEl.querySelector("p").textContent = "A 3D conformer could not be generated for this compound.";
+      const str = emptyEl.querySelector("strong");
+      if (str) str.textContent = "3D model unavailable";
+      const p = emptyEl.querySelector("p");
+      if (p) p.textContent = "A 3D conformer could not be generated for this compound.";
     }
     if (tools) tools.hidden = true;
     if (legend) legend.hidden = true;
@@ -573,8 +580,10 @@ function render3DMolecule(mol3dBlock, highlightIndices = null) {
     if (!ok) {
       if (emptyEl) {
         emptyEl.hidden = false;
-        emptyEl.querySelector("strong").textContent = "3D engine failed to load";
-        emptyEl.querySelector("p").textContent = "Check your internet connection and refresh the page.";
+        const str = emptyEl.querySelector("strong");
+        if (str) str.textContent = "3D engine failed to load";
+        const p = emptyEl.querySelector("p");
+        if (p) p.textContent = "Check your internet connection and refresh the page.";
       }
       return;
     }
@@ -833,23 +842,6 @@ function setVerdict(prediction, molName) {
   }
 }
 
-function setGauge(value, isActive) {
-  const fill = $("gaugeFill");
-  const label = $("gaugeValue");
-  const gauge = $("gauge");
-  const circumference = 2 * Math.PI * 50;
-  if (fill) {
-    fill.style.strokeDasharray = `${circumference}`;
-    fill.style.strokeDashoffset = `${circumference}`;
-    fill.style.stroke = isActive ? "var(--primary)" : "var(--rose)";
-    requestAnimationFrame(() => setTimeout(() => {
-      fill.style.strokeDashoffset = `${circumference * (1 - value)}`;
-    }, 60));
-  }
-  if (gauge) gauge.style.setProperty("--value", value);
-  if (label) animateNumber(label, value * 100, 1, 1100, "%");
-}
-
 function initSinglePrediction() {
   const input = $("smilesInput");
   const btnPredict = $("btnPredict");
@@ -860,8 +852,15 @@ function initSinglePrediction() {
   const loadingStep = $("loadingStep");
   if (!input || !btnPredict) return;
 
-  const showError = (msg) => { errorBox.textContent = msg; errorBox.classList.add("visible"); };
-  const hideError = () => errorBox.classList.remove("visible");
+  const showError = (msg) => {
+    if (errorBox) {
+      errorBox.textContent = msg;
+      errorBox.classList.add("visible");
+    }
+  };
+  const hideError = () => {
+    if (errorBox) errorBox.classList.remove("visible");
+  };
 
   $("btnExample")?.addEventListener("click", () => {
     input.value = EXAMPLES[exampleIdx++ % EXAMPLES.length];
@@ -878,20 +877,22 @@ function initSinglePrediction() {
   $("btnClear")?.addEventListener("click", () => {
     input.value = "";
     hideError();
-    empty.hidden = false;
-    body.hidden = true;
-    loading.hidden = true;
+    if (empty) empty.hidden = false;
+    if (body) body.hidden = true;
+    if (loading) loading.hidden = true;
     if (viewer3D) { viewer3D.clear(); viewer3D.render(); }
     const stageEmpty = $("stageEmpty");
     if (stageEmpty) {
       stageEmpty.hidden = false;
-      stageEmpty.querySelector("strong").textContent = "No structure loaded";
-      stageEmpty.querySelector("p").textContent = "Run a prediction to render a force-field optimised 3D conformer.";
+      const str = stageEmpty.querySelector("strong");
+      if (str) str.textContent = "No structure loaded";
+      const p = stageEmpty.querySelector("p");
+      if (p) p.textContent = "Run a prediction to render a force-field optimised 3D conformer.";
     }
-    $("viewerTools").hidden = true;
-    $("atomLegend").hidden = true;
-    $("xaiContainer").hidden = true;
-    $("optContainer").hidden = true;
+    if ($("viewerTools")) $("viewerTools").hidden = true;
+    if ($("atomLegend")) $("atomLegend").hidden = true;
+    if ($("xaiContainer")) $("xaiContainer").hidden = true;
+    if ($("optContainer")) $("optContainer").hidden = true;
     if ($("activeAppContainer")) $("activeAppContainer").hidden = true;
     if ($("targetSpecsCard")) $("targetSpecsCard").hidden = false;
   });
@@ -923,8 +924,11 @@ function initSinglePrediction() {
   }));
 
   $("btnCopySmiles")?.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText($("resSmiles").textContent); toast("SMILES copied"); }
-    catch { toast("Copy not available"); }
+    const smilesText = $("resSmiles")?.textContent;
+    if (smilesText && smilesText !== "—") {
+      try { await navigator.clipboard.writeText(smilesText); toast("SMILES copied"); }
+      catch { toast("Copy not available"); }
+    }
   });
 
   const steps = ["Resolving molecule…", "Generating Morgan fingerprint…", "Running XGBoost inference…", "Computing atom attribution…", "Building 3D conformer…"];
@@ -934,14 +938,18 @@ function initSinglePrediction() {
     if (!value) { showError("Please enter a molecule name or SMILES string."); input.focus(); return; }
     hideError();
 
-    $("stageEmpty").hidden = true;
-    loading.hidden = false;
+    const stageEmpty = $("stageEmpty");
+    if (stageEmpty) stageEmpty.hidden = true;
+    if (loading) loading.hidden = false;
     btnPredict.disabled = true;
     setButtonContent(btnPredict, "loader-circle", "Analysing…");
     btnPredict.querySelector("svg")?.classList.add("spin");
     let s = 0;
-    loadingStep.textContent = steps[0];
-    const stepTimer = setInterval(() => { s = (s + 1) % steps.length; loadingStep.textContent = steps[s]; }, 900);
+    if (loadingStep) loadingStep.textContent = steps[0];
+    const stepTimer = setInterval(() => {
+      s = (s + 1) % steps.length;
+      if (loadingStep) loadingStep.textContent = steps[s];
+    }, 900);
 
     try {
       const res = await fetch(`${API_BASE}/predict`, {
@@ -970,14 +978,12 @@ function initSinglePrediction() {
       if ($("resBonds")) $("resBonds").textContent = info.num_bonds ?? "—";
       if ($("resSmiles")) $("resSmiles").textContent = data.smiles || "—";
 
-      empty.hidden = true;
-      body.hidden = false;
-      body.style.animation = "none";
-      void body.offsetWidth;
-      body.style.animation = "rise .6s var(--ease) both";
-
-      if (data.score !== null && data.score !== undefined) {
-        setGauge(Math.max(0, Math.min(1, Number(data.score))), isActive);
+      if (empty) empty.hidden = true;
+      if (body) {
+        body.hidden = false;
+        body.style.animation = "none";
+        void body.offsetWidth;
+        body.style.animation = "rise .6s var(--ease) both";
       }
 
       currentMol3D = data.mol_3d || "";
@@ -986,12 +992,25 @@ function initSinglePrediction() {
       renderXAI(currentAttribution);
       renderLeadOptimization(data.lead_optimization, data.prediction);
       renderActiveApplications(data.active_suggestions, data.prediction);
+
+      // Update AI Assistant live context
+      window.currentPredictionContext = {
+        molecule_name: data.molecule_name || value,
+        smiles: data.smiles || value,
+        prediction: data.prediction,
+        mol_info: data.mol_info || {},
+        top_substructures: data.atom_attribution?.top_substructures || []
+      };
+      const contextBadge = $("chatMolContextBadge");
+      if (contextBadge) {
+        contextBadge.textContent = `${data.molecule_name || value} · ${data.prediction}`;
+      }
     } catch (err) {
       showError(err.message || "Failed to predict molecule.");
-      if (!currentMol3D) $("stageEmpty").hidden = false;
+      if (!currentMol3D && $("stageEmpty")) $("stageEmpty").hidden = false;
     } finally {
       clearInterval(stepTimer);
-      loading.hidden = true;
+      if (loading) loading.hidden = true;
       btnPredict.disabled = false;
       setButtonContent(btnPredict, "zap", "Predict bioactivity");
     }
@@ -1014,7 +1033,12 @@ function initBatchPrediction() {
   let selectedFile = null;
   let activeFilter = "all";
 
-  const showError = (msg) => { batchError.textContent = msg; batchError.classList.add("visible"); };
+  const showError = (msg) => {
+    if (batchError) {
+      batchError.textContent = msg;
+      batchError.classList.add("visible");
+    }
+  };
 
   $("btnBrowse").addEventListener("click", (e) => { e.stopPropagation(); fileInput.click(); });
   dropZone.addEventListener("click", () => fileInput.click());
@@ -1054,9 +1078,9 @@ function initBatchPrediction() {
         return;
       }
       selectedFile = file;
-      fileName.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB · ${dataRows.toLocaleString()} rows`;
-      fileInfo.hidden = false;
-      btnRun.disabled = false;
+      if (fileName) fileName.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB · ${dataRows.toLocaleString()} rows`;
+      if (fileInfo) fileInfo.hidden = false;
+      if (btnRun) btnRun.disabled = false;
     };
     reader.readAsText(file);
   }
@@ -1240,12 +1264,16 @@ function initLightbox() {
   const dlg = $("lightbox");
   if (!dlg) return;
   document.querySelectorAll(".fig").forEach(fig => fig.addEventListener("click", () => {
-    $("lightboxImg").src = fig.dataset.src;
-    $("lightboxImg").alt = fig.dataset.title;
-    $("lightboxTitle").textContent = fig.dataset.title;
+    const img = $("lightboxImg");
+    if (img) {
+      img.src = fig.dataset.src;
+      img.alt = fig.dataset.title;
+    }
+    const title = $("lightboxTitle");
+    if (title) title.textContent = fig.dataset.title;
     dlg.showModal();
   }));
-  $("lightboxClose").addEventListener("click", () => dlg.close());
+  $("lightboxClose")?.addEventListener("click", () => dlg.close());
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
 }
 
@@ -1257,4 +1285,122 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/* ─── BioPredict Molecular AI Assistant ───────────────────── */
+function initChatbot() {
+  const fab = $("chatFab");
+  const drawer = $("chatDrawer");
+  const btnClose = $("btnCloseChat");
+  const btnClear = $("btnClearChat");
+  const form = $("chatForm");
+  const input = $("chatInput");
+  const messagesBox = $("chatMessages");
+  if (!fab || !drawer) return;
+
+  const toggleDrawer = (open) => {
+    const isOpening = (typeof open === "boolean") ? open : drawer.hidden;
+    drawer.hidden = !isOpening;
+    drawer.setAttribute("aria-hidden", String(!isOpening));
+    if (isOpening) {
+      if (input) input.focus();
+      scrollChatBottom();
+    }
+  };
+
+  fab.addEventListener("click", () => toggleDrawer());
+  btnClose?.addEventListener("click", () => toggleDrawer(false));
+
+  btnClear?.addEventListener("click", () => {
+    if (!messagesBox) return;
+    messagesBox.innerHTML = `
+      <div class="chat-bubble bot">
+        <p>👋 Conversation cleared. Ask me anything about the analyzed compound, COX-2 active site residues, or lead optimization!</p>
+      </div>`;
+  });
+
+  const scrollChatBottom = () => {
+    if (messagesBox) {
+      messagesBox.scrollTop = messagesBox.scrollHeight;
+    }
+  };
+
+  // Quick Chips
+  document.querySelectorAll(".chat-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const q = chip.dataset.question;
+      if (q && input) {
+        input.value = q;
+        form?.dispatchEvent(new Event("submit", { cancelable: true }));
+      }
+    });
+  });
+
+  function formatAiMarkdown(text) {
+    if (!text) return "";
+    let safe = escapeHtml(text);
+    // Bold: **text**
+    safe = safe.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+    // Bullet lists
+    const lines = safe.split("\n");
+    let inList = false;
+    const htmlLines = [];
+    for (const l of lines) {
+      const trimmed = l.trim();
+      if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+        if (!inList) { htmlLines.push("<ul>"); inList = true; }
+        htmlLines.push(`<li>${trimmed.substring(2)}</li>`);
+      } else {
+        if (inList) { htmlLines.push("</ul>"); inList = false; }
+        if (trimmed.length > 0) {
+          htmlLines.push(`<p>${trimmed}</p>`);
+        }
+      }
+    }
+    if (inList) htmlLines.push("</ul>");
+    return htmlLines.join("");
+  }
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = (input?.value || "").trim();
+    if (!text) return;
+    input.value = "";
+
+    // Append user message
+    const userBubble = document.createElement("div");
+    userBubble.className = "chat-bubble user";
+    userBubble.textContent = text;
+    messagesBox.appendChild(userBubble);
+
+    // Append loading placeholder
+    const loadingBubble = document.createElement("div");
+    loadingBubble.className = "chat-bubble bot loading-bubble";
+    loadingBubble.innerHTML = `<span class="chat-dot"></span><span class="chat-dot"></span><span class="chat-dot"></span><span>Analyzing chemistry…</span>`;
+    messagesBox.appendChild(loadingBubble);
+    scrollChatBottom();
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          molecule_context: window.currentPredictionContext || null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to reach molecular AI assistant.");
+      }
+      loadingBubble.className = "chat-bubble bot";
+      loadingBubble.innerHTML = formatAiMarkdown(data.reply);
+    } catch (err) {
+      loadingBubble.className = "chat-bubble bot";
+      loadingBubble.innerHTML = `<p style="color: var(--rose);">⚠️ ${escapeHtml(err.message)}</p>`;
+    } finally {
+      scrollChatBottom();
+      refreshIcons();
+    }
+  });
 }
