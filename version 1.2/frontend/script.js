@@ -738,7 +738,10 @@ function renderXAI(attribution) {
   }
 }
 
-/* ─── Lead optimisation ───────────────────────────────────── */
+/* ─── Lead optimisation & Active Application Suggestions ───────────── */
+let cachedActiveSuggestions = [];
+let showAllActiveApps = false;
+
 function renderLeadOptimization(suggestions, prediction) {
   const container = $("optContainer");
   const list = $("optSuggestionsList");
@@ -761,7 +764,75 @@ function renderLeadOptimization(suggestions, prediction) {
     </article>`).join("");
 }
 
+function renderActiveApplications(suggestions, prediction) {
+  const container = $("activeAppContainer");
+  const list = $("activeAppList");
+  if (!container || !list) return;
+  if (prediction !== "Active" || !suggestions?.length) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  // Display strictly the top 3 most promising applications
+  const displayList = suggestions.slice(0, 3);
+
+  list.innerHTML = displayList.map((item, idx) => `
+    <article class="opt-card app-card top-rec" style="animation: rise .5s ${idx * 80}ms var(--ease) both">
+      <div class="opt-card-header">
+        <span class="opt-card-number app-rank">#${idx + 1}</span>
+        <h4 class="opt-card-title">${escapeHtml(item.title)}</h4>
+        <span class="app-suitability-badge badge-top">
+          <i data-lucide="star"></i> Top Match (${item.suitability_score}%)
+        </span>
+      </div>
+      <div class="app-domain"><i data-lucide="cross"></i> ${escapeHtml(item.domain)}</div>
+      <p class="opt-card-rationale">${escapeHtml(item.rationale)}</p>
+      <div class="app-indications">
+        <strong>Target Conditions:</strong> ${escapeHtml(item.target_conditions)}
+      </div>
+      <div class="opt-card-footer app-footer">
+        <div><strong>RDKit Evidence:</strong> ${escapeHtml(item.rdkit_evidence)}</div>
+        <div><strong>Reference Drugs:</strong> ${escapeHtml(item.reference_drugs)}</div>
+      </div>
+    </article>`).join("");
+
+  if (window.lucide && typeof lucide.createIcons === "function") {
+    lucide.createIcons();
+  }
+}
+
 /* ─── Single prediction ───────────────────────────────────── */
+function setVerdict(prediction, molName) {
+  const banner = $("verdictBanner");
+  const title = $("verdictTitle");
+  const subtext = $("verdictSubtext");
+  const icon = $("verdictIcon");
+  const iconBox = $("verdictIconBox");
+  const isActive = prediction === "Active";
+
+  if (banner) {
+    banner.className = `verdict-banner ${isActive ? "verdict-active" : "verdict-inactive"}`;
+  }
+  if (title) {
+    title.textContent = isActive ? "BIOACTIVE (Active COX-2 Lead)" : "INACTIVE (Non-Inhibitory)";
+  }
+  if (subtext) {
+    subtext.textContent = isActive
+      ? "Predicted potent COX-2 inhibition (IC50 ≤ 1,000 nM). Molecule exhibits characteristic pharmacophore anchors."
+      : "Predicted inactive or weak affinity (IC50 > 1,000 nM). Explore lead optimization suggestions below.";
+  }
+  if (icon) {
+    icon.setAttribute("data-lucide", isActive ? "shield-check" : "alert-circle");
+  }
+  if (iconBox) {
+    iconBox.className = `verdict-icon-box ${isActive ? "box-active" : "box-inactive"}`;
+  }
+  if (window.lucide && typeof lucide.createIcons === "function") {
+    lucide.createIcons();
+  }
+}
+
 function setGauge(value, isActive) {
   const fill = $("gaugeFill");
   const label = $("gaugeValue");
@@ -821,6 +892,7 @@ function initSinglePrediction() {
     $("atomLegend").hidden = true;
     $("xaiContainer").hidden = true;
     $("optContainer").hidden = true;
+    if ($("activeAppContainer")) $("activeAppContainer").hidden = true;
     if ($("targetSpecsCard")) $("targetSpecsCard").hidden = false;
   });
 
@@ -881,18 +953,22 @@ function initSinglePrediction() {
       if (!res.ok || data.detail) throw new Error(data.detail || `Server error (${res.status})`);
 
       const isActive = data.prediction === "Active";
-      const badge = $("predBadge");
-      badge.textContent = data.prediction;
-      badge.className = `badge ${isActive ? "badge-active" : "badge-inactive"}`;
+      setVerdict(data.prediction, data.molecule_name || value);
 
-      $("resMolName").textContent = data.molecule_name || value;
-      $("resModel").textContent = data.model || "XGBoost";
+      const badge = $("predBadge");
+      if (badge) {
+        badge.textContent = data.prediction;
+        badge.className = `badge ${isActive ? "badge-active" : "badge-inactive"}`;
+      }
+
+      if ($("resMolName")) $("resMolName").textContent = data.molecule_name || value;
+      if ($("resModel")) $("resModel").textContent = data.model || "XGBoost";
       const info = data.mol_info || {};
-      $("resFormula").textContent = info.formula || "—";
-      $("resMW").textContent = info.mol_weight ? `${info.mol_weight} g/mol` : "—";
-      $("resAtoms").textContent = info.num_atoms ?? "—";
-      $("resBonds").textContent = info.num_bonds ?? "—";
-      $("resSmiles").textContent = data.smiles || "—";
+      if ($("resFormula")) $("resFormula").textContent = info.formula || "—";
+      if ($("resMW")) $("resMW").textContent = info.mol_weight ? `${info.mol_weight} g/mol` : "—";
+      if ($("resAtoms")) $("resAtoms").textContent = info.num_atoms ?? "—";
+      if ($("resBonds")) $("resBonds").textContent = info.num_bonds ?? "—";
+      if ($("resSmiles")) $("resSmiles").textContent = data.smiles || "—";
 
       empty.hidden = true;
       body.hidden = false;
@@ -900,14 +976,16 @@ function initSinglePrediction() {
       void body.offsetWidth;
       body.style.animation = "rise .6s var(--ease) both";
 
-      const score = (data.score !== null && data.score !== undefined) ? Number(data.score) : 0;
-      setGauge(Math.max(0, Math.min(1, score)), isActive);
+      if (data.score !== null && data.score !== undefined) {
+        setGauge(Math.max(0, Math.min(1, Number(data.score))), isActive);
+      }
 
       currentMol3D = data.mol_3d || "";
       currentAttribution = data.atom_attribution || null;
       render3DMolecule(currentMol3D);
       renderXAI(currentAttribution);
       renderLeadOptimization(data.lead_optimization, data.prediction);
+      renderActiveApplications(data.active_suggestions, data.prediction);
     } catch (err) {
       showError(err.message || "Failed to predict molecule.");
       if (!currentMol3D) $("stageEmpty").hidden = false;
@@ -992,7 +1070,7 @@ function initBatchPrediction() {
       return !q || String(r.smiles).toLowerCase().includes(q);
     });
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="muted-cell">No rows match this filter.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="muted-cell">No rows match this filter.</td></tr>`;
       return;
     }
     tbody.innerHTML = rows.slice(0, 500).map((r, i) => {
@@ -1000,15 +1078,12 @@ function initBatchPrediction() {
         ? `<span class="st-ok">Valid</span>`
         : `<span class="st-err" title="${escapeHtml(r.error || "Invalid SMILES")}">Error</span>`;
       const smiles = String(r.smiles || "");
-      const short = smiles.length > 34 ? escapeHtml(smiles.slice(0, 34)) + "…" : escapeHtml(smiles);
+      const short = smiles.length > 38 ? escapeHtml(smiles.slice(0, 38)) + "…" : escapeHtml(smiles);
       const pred = r.prediction
         ? `<span class="badge badge-sm ${r.prediction === "Active" ? "badge-active" : "badge-inactive"}">${r.prediction}</span>` : "—";
-      const score = (r.score !== null && r.score !== undefined)
-        ? `<div class="score-cell ${r.prediction === "Active" ? "" : "inactive"}"><div class="score-track"><span style="width:${(r.score * 100).toFixed(1)}%"></span></div>${(r.score * 100).toFixed(1)}%</div>`
-        : "—";
       return `<tr class="row-in" style="animation-delay:${Math.min(i, 20) * 25}ms">
         <td>${r.row}</td><td><code title="${escapeHtml(smiles)}">${short}</code></td>
-        <td>${status}</td><td>${pred}</td><td>${score}</td></tr>`;
+        <td>${status}</td><td>${pred}</td></tr>`;
     }).join("");
   }
 
@@ -1073,9 +1148,9 @@ function initBatchPrediction() {
   $("btnDownload").addEventListener("click", () => {
     if (!batchDataCache?.results) return;
     const rows = [
-      ["Row", "SMILES", "Status", "Prediction", "Confidence_Score", "Error"],
+      ["Row", "SMILES", "Status", "Bioactivity_Verdict", "Error"],
       ...batchDataCache.results.map(r => [
-        r.row, `"${r.smiles}"`, r.status, r.prediction || "", r.score ?? "", `"${r.error || ""}"`
+        r.row, `"${r.smiles}"`, r.status, r.prediction || "", `"${r.error || ""}"`
       ])
     ];
     const blob = new Blob([rows.map(e => e.join(",")).join("\n")], { type: "text/csv" });
