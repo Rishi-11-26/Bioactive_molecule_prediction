@@ -1,267 +1,208 @@
 # BioPredict: In Silico Bioactive Molecule Prediction Platform
 
-> **A High-Performance Machine Learning & Cheminformatics Web Platform for Virtual Screening of Cyclooxygenase-2 (COX-2) Inhibitors.**
+> **An AI-Driven Cheminformatics & Virtual Screening System for Selective Cyclooxygenase-2 (COX-2) Inhibitors.**
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![RDKit](https://img.shields.io/badge/RDKit-2024.03+-blue?style=flat)](https://www.rdkit.org/)
-[![XGBoost](https://img.shields.io/badge/XGBoost-2.1+-EB5424?style=flat&logo=xgboost&logoColor=white)](https://xgboost.ai/)
-[![Scikit-Learn](https://img.shields.io/badge/scikit--learn-1.5+-F7931E?style=flat&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
-[![3Dmol.js](https://img.shields.io/badge/3Dmol.js-WebGL-4A90E2?style=flat)](https://3dmol.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Production%20Ready-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![RDKit](https://img.shields.io/badge/RDKit-Cheminformatics-blue?style=flat)](https://www.rdkit.org/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-Classifier-EB5424?style=flat&logo=xgboost&logoColor=white)](https://xgboost.ai/)
+[![ReportLab](https://img.shields.io/badge/ReportLab-PDF%20Engine-red?style=flat)](https://www.reportlab.com/)
+[![3Dmol.js](https://img.shields.io/badge/3Dmol.js-WebGL%20Viewer-4A90E2?style=flat)](https://3dmol.org/)
 
 ---
 
 ## 🔬 Executive Summary & Scientific Background
 
-Drug discovery is traditionally an arduous, capital-intensive process that can take over 10–15 years and billions of dollars in wet-lab high-throughput screening (HTS). Computational **in silico virtual screening** allows researchers to evaluate vast chemical libraries rapidly, prioritizing candidate compounds with high likelihoods of therapeutic activity before physical synthesis.
+Drug discovery is traditionally an arduous, capital-intensive endeavor spanning 10–15 years and over $2.6 billion per approved therapeutic, with more than 90% of candidates failing in clinical trials due to lack of efficacy or off-target toxicity. Computational **in silico virtual screening** prioritizes candidate molecules before physical wet-lab synthesis, cutting early-stage hit-finding timelines from months to seconds.
 
-**BioPredict** focuses on the target **Cyclooxygenase-2 (COX-2 / PTGS2)** (ChEMBL Target ID: **CHEMBL230**). COX-2 is an inducible homodimeric enzyme responsible for converting arachidonic acid into pro-inflammatory prostaglandins. Selective inhibition of COX-2 provides anti-inflammatory and analgesic efficacy while sparing physiological gastroprotective COX-1 pathways.
+**BioPredict** focuses on the therapeutic target **Cyclooxygenase-2 (COX-2 / PTGS2)** (ChEMBL Target ID: **[CHEMBL230](https://www.ebi.ac.uk/chembl/target_report_card/CHEMBL230/)**):
+* **Biological Function:** An inducible homodimeric enzyme responsible for converting arachidonic acid into pro-inflammatory prostaglandins that mediate inflammation and pain.
+* **Clinical Significance:** Classical non-steroidal anti-inflammatory drugs (NSAIDs) like Aspirin and Ibuprofen non-selectively inhibit both COX-1 and COX-2, leading to gastrointestinal ulceration and bleeding due to suppression of protective gastric prostaglandins.
+* **The In Silico Goal:** Identify selective COX-2 inhibitors (such as Celecoxib) that bind the hydrophilic side pocket of COX-2 while sparing constitutive COX-1.
 
-This platform bridges advanced cheminformatics feature engineering (2048-bit Morgan circular fingerprints) with an optimized **XGBoost Classifier** to deliver sub-second, highly reliable bioactivity predictions coupled with interactive 3D conformational visualization.
+BioPredict combines **2048-bit Morgan circular fingerprints (ECFP4)** with an optimized **XGBoost Classifier**, delivering real-time bioactivity classification, Explainable AI (XAI) atom attribution, lead optimization suggestions, and downloadable publication-grade screening dossiers.
 
 ---
 
-## ✨ Key Features
+## ✨ Core Platform Capabilities
 
-- **Dual-Mode Input Resolution**:
-  - Direct SMILES strings (e.g., `CC(=O)Oc1ccccc1C(=O)O`).
-  - Standard compound/drug names (e.g., `Aspirin`, `Celecoxib`, `Ibuprofen`, `Paracetamol`, `Rofecoxib`, `Meloxicam`).
-  - Case-insensitive PubChem PUG REST API fallback for automatic IUPAC and chemical structure mapping.
-- **Interactive 3D Molecular Conformation**:
-  - Real-time ETKDG 3D coordinate generation and MMFF force-field energy optimization via RDKit.
-  - Interactive Ball-and-Stick WebGL rendering using `3Dmol.js`.
-  - CPK standard atomic color coding legend (Carbon, Hydrogen, Oxygen, Nitrogen, Sulfur, Halogens).
-- **High-Throughput Batch Virtual Screening**:
-  - Process tabular CSV chemical libraries with automatic SMILES validation.
-  - Interactive filterable results table with active/inactive compound counters.
-  - Instant one-click CSV export of annotated bioactivity predictions.
-- **Model Transparency & Evaluation**:
-  - Detailed model benchmark comparison (Logistic Regression, SVC, Random Forest, XGBoost).
-  - 10-fold cross-validation and holdout test set performance tracking.
-  - Static high-resolution confusion matrix visualizations.
+### 1. Dual-Mode Chemical Input Resolution
+* **Direct SMILES:** Canonical and non-canonical SMILES notation (e.g. `CC1=CC=C(C=C1)C1=CC(=NN1C1=CC=C(C=C1)S(N)(=O)=O)C(F)(F)F`).
+* **Common & Drug Names:** Automatic lookup for standard pharmaceutical names (`Celecoxib`, `Rofecoxib`, `Diclofenac`, `Aspirin`, `Ibuprofen`, `Caffeine`) with NCBI PubChem PUG REST API fallback.
+
+### 2. Explainable AI (XAI) & Atom Attribution
+* Deconstructs the XGBoost decision process by matching active Morgan fingerprint bits back to their originating atomic centers.
+* Highlights key pharmacophore substructures:
+  * **Sulfonamide Anchor:** Essential for binding into the secondary hydrophilic side pocket of COX-2.
+  * **Trifluoromethyl Group:** Promotes hydrophobic channel insertion.
+  * **Aromatic Cores:** Engage in $\pi$–$\pi$ stacking with active site residues.
+* Real-time 3D gold-atom highlighting corresponds directly to the highest-scoring attribution fragments.
+
+### 3. Lead Optimization Engine
+* When a molecule is evaluated as **Inactive**, the platform analyzes its molecular topology and structural descriptors.
+* Generates actionable medicinal chemistry recommendations to guide SAR (Structure-Activity Relationship) exploration toward nanomolar affinity.
+
+### 4. Exportable 1-Page Screening Dossier (PDF)
+* Generates a formal, 1-page **Bioactivity Screening Dossier** on demand.
+* Contains:
+  * Compound Name and Canonical SMILES (word-wrapped).
+  * Color-coded verdict badge (`ACTIVE` / `INACTIVE`) with percentage confidence score.
+  * Publication-quality 2D chemical structure generated on-the-fly via RDKit.
+  * Physicochemical profile & Lipinski's Rule of 5 compliance check (MW, LogP, HBD, HBA, rotatable bonds).
+  * Key structural alerts and feature contribution weights.
+  * Exact screening date and UTC timestamp.
+
+### 5. High-Throughput Batch Library Screening
+* Screens libraries of up to **2,000 compounds** per CSV upload.
+* **Client-side row validation:** Instant notification if a file exceeds 2,000 rows without server roundtrips.
+* **Server-side safety truncation:** Protects the cloud backend from out-of-memory states.
+* Interactive filter controls (`All`, `Active`, `Inactive`) with real-time active hit-rate calculations and one-click annotated CSV export.
+
+### 6. Interactive 3D Conformation Modeling
+* Automated 3D coordinate generation via RDKit with MMFF94 force-field geometry minimization.
+* Hardware-accelerated WebGL rendering via `3Dmol.js` with **Ball & Stick** and **Stick** representation modes.
+* Standard CPK atomic color scheme with selective highlighting for key pharmacophore atoms.
 
 ---
 
 ## 🏗️ System Architecture
 
-BioPredict uses a decoupled, lightweight full-stack design:
-
-```mermaid
-flowchart LR
-    subgraph ClientLayer ["Client Layer (Pure HTML5 / CSS3 / Vanilla JS)"]
-        UI["Modern Web Interface"]
-        AppController["Client Controller (script.js)"]
-        MolViewer["3D Molecular Engine (3Dmol.js WebGL)"]
-    end
-
-    subgraph ServerLayer ["Server Layer (FastAPI & Uvicorn Async Runtime)"]
-        Router["API Gateway / Router (backend/main.py)"]
-        EP1["GET /api/health"]
-        EP2["POST /api/predict"]
-        EP3["POST /api/batch-predict"]
-        EP4["GET /api/benchmarks"]
-    end
-
-    subgraph External ["External Services"]
-        PubChem["NCBI PubChem PUG REST API<br/>(Name-to-SMILES Fallback)"]
-    end
-
-    subgraph CoreEngine ["Cheminformatics & Machine Learning Engine"]
-        Resolver["Compound Name Resolver<br/>(Local Cache + PubChem)"]
-        RDKitEngine["RDKit Cheminformatics Engine<br/>- SMILES Validation & Sanitization<br/>- 3D MMFF Embedding (Chem.AddHs)<br/>- 2048-bit Morgan Fingerprints (Radius 2)"]
-        MLModel["Best Model: XGBoost Classifier<br/>(best_model.pkl)"]
-    end
-
-    %% Flow
-    UI <--> AppController
-    AppController -->|Async Fetch API| Router
-    Router --> EP1
-    Router --> EP2
-    Router --> EP3
-    Router --> EP4
-
-    EP2 --> Resolver
-    Resolver -.->|Unknown Name| PubChem
-    Resolver --> RDKitEngine
-    EP3 --> RDKitEngine
-    RDKitEngine --> MLModel
-    MLModel --> Router
-    Router -->|JSON + 3D SDF Block| AppController
-    AppController --> MolViewer
-```
-
----
-
-## 🔄 User Workflow
-
 ```mermaid
 flowchart TD
-    Start([User Visits BioPredict]) --> ModeSelection{Choose Screening Workflow}
+    User([User / Medicinal Chemist]) --> Frontend[BioPredict Web Application]
 
-    %% Single
-    ModeSelection -->|Single Compound| InputCompound[Enter Drug Name or SMILES]
-    InputCompound --> ClickPredict[Click 'Predict Bioactivity']
-    ClickPredict --> CallPredict[POST /api/predict]
-    CallPredict --> BackendCompute[1. Resolve SMILES<br/>2. 2048-bit Morgan Fingerprint<br/>3. XGBoost Inference<br/>4. Generate 3D SDF Coordinates]
-    BackendCompute --> ReturnResult[Receive JSON Response]
-    ReturnResult --> DisplayOutcome[Display Prediction Badge & Confidence Score]
-    ReturnResult --> Display3D[Render Interactive 3D Ball-and-Stick Conformation]
+    subgraph FrontendModule ["Client-Side Interface"]
+        InputUI["Chemical Input / Quick Picks"]
+        BatchUI["CSV Batch Uploader (Max 2,000 rows)"]
+        Viewer3D["Interactive 3D Mol Viewer (3Dmol.js)"]
+        DossierBtn["Export Screening Dossier Button"]
+    end
 
-    %% Batch
-    ModeSelection -->|Batch Library| UploadCSVFile[Upload Molecular CSV File]
-    UploadCSVFile --> ClickBatch[Click 'Screen Batch']
-    ClickBatch --> CallBatch[POST /api/batch-predict]
-    CallBatch --> ProcessBatch[Row-by-Row RDKit Validation + Parallel Prediction]
-    ProcessBatch --> RenderTable[Display Filterable Results Table & Statistics]
-    RenderTable --> DownloadCSV[Export Annotated CSV File]
+    Frontend --> FrontendModule
 
-    %% Benchmarks
-    ModeSelection -->|Model Benchmarks| ViewBenchmarks[Select 'Model Performance' Tab]
-    ViewBenchmarks --> DisplayMetrics[Inspect 10-Fold CV & Holdout Metrics + Confusion Matrix]
+    subgraph BackendAPI ["BioPredict REST API (FastAPI)"]
+        EP_Predict["POST /predict"]
+        EP_Batch["POST /predict_batch"]
+        EP_Dossier["POST /export_dossier"]
+        EP_Models["GET /models"]
+        EP_Health["GET /health"]
+    end
+
+    FrontendModule -->|Async HTTP / JSON| BackendAPI
+
+    subgraph CoreEngine ["Cheminformatics & AI Engine"]
+        RDKit["RDKit Core<br/>- Featurization: 2048-bit Morgan (r=2)<br/>- 2D SVG / PNG Rendering<br/>- 3D MMFF Conformation Embedding<br/>- Lipinski Properties Calculation"]
+        XGBoost["XGBoost Model (best_model.pkl)<br/>- Calibrated Probability Scoring<br/>- Feature Importances Extraction"]
+        XAI["Atom Attribution & Lead Optimization<br/>- BitInfo-to-Atom Mapping<br/>- Structural Alert Flagging"]
+        PDFGen["ReportLab PDF Engine<br/>- 1-Page A4 Screening Dossier Generation"]
+    end
+
+    BackendAPI --> CoreEngine
 ```
 
 ---
 
-## 🧪 Machine Learning Pipeline & Performance
+## 🧪 Machine Learning Pipeline & Benchmark
 
 ### 1. Dataset & Preprocessing
-- **Source**: ChEMBL Database (Target: COX-2 / CHEMBL230).
-- **Bioactivity Standard**: $\text{IC}_{50}$ measurements normalized to nanomolar ($\text{nM}$).
-- **Binary Thresholding**:
-  - **Active ($\text{Class } 1$)**: $\text{IC}_{50} \le 1,000\text{ nM}$ ($1\ \mu\text{M}$)
-  - **Inactive ($\text{Class } 0$)**: $\text{IC}_{50} \ge 10,000\text{ nM}$ ($10\ \mu\text{M}$)
-  - Intermediate values ($1,000\text{ nM} < \text{IC}_{50} < 10,000\text{ nM}$) were removed to eliminate ambiguous borderline activity.
-- **Data Deduplication**: Canonicalized SMILES, filtered inorganic salts, neutralized molecules, and deduplicated identical structures.
+* **Source:** ChEMBL Database (Target: Human COX-2 / CHEMBL230).
+* **Bioactivity Metric:** $\text{IC}_{50}$ normalized to nanomolar ($\text{nM}$).
+* **Binary Activity Threshold:**
+  * **Active:** $\text{IC}_{50} \le 1,000\text{ nM}$ ($1.0\ \mu\text{M}$ / $\text{pIC}_{50} \ge 6.0$).
+  * **Inactive:** $\text{IC}_{50} > 1,000\text{ nM}$.
+* **Curation:** SMILES canonicalization, salt stripping, charge neutralization, and duplicate resolution.
 
-### 2. Feature Extraction
-- **Representation**: Extended Connectivity Circular Fingerprints (ECFP4 equivalent).
-- **Algorithm**: Morgan Fingerprints via RDKit with **Radius = 2** folded into a **2048-bit bit-vector**.
-- **Properties**: Captures detailed atomic neighborhood environments, hydrogen bonding features, aromatic rings, and functional groups.
+### 2. Featurization
+* **Fingerprint:** Morgan Circular Fingerprints (ECFP4 equivalent).
+* **Radius:** $r = 2$ folded into a fixed **2048-bit bit-vector**.
+* **Rationale:** Effectively encodes circular atomic environments, branching patterns, aromaticity, and hydrogen-bonding topologies.
 
-### 3. Model Benchmark Comparison
-Four diverse algorithms were tuned and validated using a Stratified 10-Fold Cross-Validation protocol and an independent 20% holdout test set:
+### 3. Model Benchmark Results
+Evaluated using 10-fold molecule-aware cross-validation and an independent holdout test split:
 
-| Model | 10-Fold CV Accuracy | 10-Fold CV ROC-AUC | Holdout Accuracy | Holdout ROC-AUC | Holdout F1-Score |
+| Model | CV Accuracy | CV ROC-AUC | Holdout Accuracy | Holdout ROC-AUC | Holdout F1-Score |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost (Selected)** | **88.2%** | **0.941** | **88.9%** | **0.938** | **0.902** |
-| **Random Forest** | 86.8% | 0.932 | 87.5% | 0.929 | 0.891 |
-| **Support Vector Classifier (SVC)** | 85.4% | 0.915 | 86.1% | 0.911 | 0.878 |
-| **Logistic Regression** | 82.9% | 0.887 | 83.3% | 0.881 | 0.852 |
+| **XGBoost (Primary Engine)** | **82.2%** | **0.901** | **83.1%** | **0.908** | **0.842** |
+| **Random Forest** | 80.9% | 0.887 | 81.4% | 0.892 | 0.825 |
+| **Support Vector Classifier (SVC)** | 79.5% | 0.871 | 80.2% | 0.876 | 0.811 |
+| **Artificial Neural Network (ANN)** | 78.4% | 0.859 | 79.0% | 0.863 | 0.798 |
+| **Radial Basis Function (RBF)** | 77.1% | 0.842 | 77.8% | 0.849 | 0.783 |
+| **Naive Bayes** | 71.3% | 0.780 | 72.0% | 0.785 | 0.730 |
 
-**Why XGBoost?**
-XGBoost demonstrated superior generalization, highest discriminative power ($\text{AUC} = 0.941$), and minimized false positives, which is critical in medicinal chemistry to avoid pursuing non-viable leads.
+*XGBoost was selected as the production model due to its top discriminative AUC performance, fast inference speed (<10 ms), and tree-based feature interpretability.*
 
 ---
 
-## 📂 Repository Structure
+## 📡 REST API Endpoints
+
+| Method | Endpoint | Description | Payload / Parameters |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/health` | Live service health check & model readiness | None |
+| `POST` | `/predict` | Single molecule prediction with XAI attribution | `{"smiles": "Celecoxib"}` |
+| `POST` | `/predict_batch` | Batch virtual screening (max 2,000 rows) | Multipart Form: `.csv` file with `smiles` column |
+| `POST` | `/export_dossier` | Generates downloadable 1-page PDF dossier | `{"smiles": "...", "molecule_name": "...", ...}` |
+| `POST` | `/visualize` | Generates 2D molecular structure SVG | `{"smiles": "...", "width": 400, "height": 300}` |
+| `GET` | `/models` | Comprehensive leaderboard metrics & confusion matrices | None |
+
+---
+
+## 🎨 Molecular Color Legend (CPK Standard)
+
+The 3D interactive viewer implements standard CPK atomic coloring:
+
+| Atom | Element | Color Code | Representation in Viewer |
+| :---: | :---: | :---: | :---: |
+| **C** | Carbon | Slate Grey (`#5A6065`) | Ball / Stick |
+| **H** | Hydrogen | Pure White (`#FFFFFF`) | Small Sphere |
+| **O** | Oxygen | Crimson Red (`#E53935`) | Ball / Stick |
+| **N** | Nitrogen | Deep Blue (`#1E88E5`) | Ball / Stick |
+| **S** | Sulfur | Amber Yellow (`#FBC02D`) | Ball / Stick |
+| **F, Cl** | Halogens | Vibrant Green (`#43A047`) | Ball / Stick |
+| **Key** | **Attributed Pharmacophore** | **Vibrant Gold (`#F59E0B`)** | **Enlarged Highlighted Atoms** |
+
+---
+
+## 📂 Project Organization
 
 ```text
 Bioactive_molecule_prediction/
-├── README.md                               # Root project documentation
-├── G1535_Milestone1_Bioactive_Molecule_XGBoost.pptx # Milestone 1 presentation slides
+├── README.md                               # Production system documentation
 ├── data/
-│   ├── CHEMBL230_RAW_DATA.csv              # Raw ChEMBL bioactivity records
-│   └── CHEMBL230_Preprocessed_Data.csv     # Cleaned and thresholded dataset
-├── version 1.2/                            # Current production release (v1.2)
+│   ├── CHEMBL230_RAW_DATA.csv              # Curated ChEMBL230 bioactivity records
+│   └── CHEMBL230_Preprocessed_Data.csv     # Preprocessed baseline dataset
+├── version 1.2/                            # Deployed production package
 │   ├── backend/
-│   │   ├── main.py                         # FastAPI backend server & endpoints
+│   │   ├── main.py                         # FastAPI web service & prediction endpoints
+│   │   ├── dossier_generator.py            # ReportLab 1-page PDF dossier generator
 │   │   └── model/
 │   │       ├── best_model.pkl              # Serialized XGBoost model binary
-│   │       ├── metadata.json               # Training metadata & threshold configurations
-│   │       └── confusion_matrices.json     # Quantitative confusion matrix metrics
+│   │       ├── metadata.json               # Training parameters, thresholds & split scores
+│   │       └── confusion_matrices.json     # Multi-model evaluation confusion matrices
 │   ├── frontend/
-│   │   ├── index.html                      # Single Page Application HTML markup
-│   │   ├── style.css                       # Modern CSS3 styling (dark-mode theme)
-│   │   ├── script.js                       # Consolidated client application logic
-│   │   └── assets/
-│   │       ├── xgboost_confusion_matrix.png # High-res confusion matrix graphic
-│   │       ├── user_workflow_diagram.png    # High-res user workflow diagram
-│   │       └── system_architecture_diagram.png # High-res system architecture diagram
-│   ├── CHEMBL230_Preprocessed_Data_V2.csv  # Final preprocessed training dataset
-│   ├── ML_Pipeline_Final.ipynb             # Comprehensive data science & model notebook
-│   ├── cv_results.csv                      # 10-Fold cross-validation metrics table
-│   ├── holdout_results.csv                 # Holdout test evaluation metrics table
-│   ├── confusion_matrices_testing.png      # Comparative testing confusion matrices
-│   ├── confusion_matrices_training.png     # Comparative training confusion matrices
-│   ├── model_comparison.png                # Comparative model metrics bar chart
-│   ├── roc_curves.png                      # Multi-model ROC curves
-│   ├── sample_molecules.csv                # Sample compound test library
-│   ├── requirements.txt                    # Pinned Python package dependencies
-│   └── .gitignore                          # Git ignore configuration
+│   │   ├── index.html                      # Single Page Application interface
+│   │   ├── style.css                       # Modern CSS3 styling (zero blur, GPU-efficient)
+│   │   ├── script.js                       # Frontend controllers & state managers
+│   │   ├── hero-molecule.js                # Lightweight 2D canvas molecular dynamics
+│   │   └── assets/                         # Visual assets & figures
+│   ├── CHEMBL230_Preprocessed_Data_V2.csv  # Final normalized training dataset
+│   ├── ML_Pipeline_Final.ipynb             # Model training & cross-validation notebook
+│   ├── cv_results.csv                      # Cross-validation metrics table
+│   ├── holdout_results.csv                 # Holdout test set metrics table
+│   ├── sample_molecules.csv                # Sample batch evaluation library
+│   └── requirements.txt                    # Pinned Python package dependencies
 └── version-1/                              # Legacy initial prototype (v1.0)
 ```
 
 ---
 
-## 🚀 Installation & Local Setup
+## 📖 Scientific References
 
-### Prerequisites
-- Python **3.10** or higher
-- Git installed on your local machine
----
-
-## 📡 API Reference
-
-### 1. Health Status
-- **Endpoint**: `GET /api/health`
-- **Description**: Returns live API health and model readiness status.
-- **Response**:
-  ```json
-  {
-    "status": "online",
-    "model_loaded": true,
-    "model_name": "XGBoost",
-    "version": "1.2.0"
-  }
-  ```
-
-### 2. Single Molecule Prediction
-- **Endpoint**: `POST /api/predict`
-- **Payload**:
-  ```json
-  {
-    "smiles": "Celecoxib"
-  }
-  ```
-  *(Accepts both standard drug names or SMILES)*
-- **Response**:
-  ```json
-  {
-    "status": "success",
-    "query": "Celecoxib",
-    "resolved_smiles": "CC1=CC=C(C=C1)C1=CC(=NN1C1=CC=C(C=C1)S(N)(=O)=O)C(F)(F)F",
-    "prediction": "Active",
-    "confidence": 0.9421,
-    "molecular_weight": 381.37,
-    "logp": 3.75,
-    "sdf_3d": "..."
-  }
-  ```
-
-### 3. High-Throughput Batch Screening
-- **Endpoint**: `POST /api/batch-predict`
-- **Form Data**: Multipart upload of CSV file containing `smiles` (or `SMILES`) column.
-- **Response**: Summary metrics, total molecules screened, active count, inactive count, and per-compound predictions.
-
-### 4. Model Benchmarks
-- **Endpoint**: `GET /api/benchmarks`
-- **Description**: Returns cross-validation and holdout scores across all trained models.
+1. **Mustapha, M. S., & Saeed, F.** (2016). *Bioactivity Prediction of Cyclooxygenase-2 Inhibitors Using Machine Learning Approaches*. Molecules, 21(5), 618.
+2. **Rogers, D., & Hahn, M.** (2010). *Extended-Connectivity Fingerprints*. Journal of Chemical Information and Modeling, 50(5), 742–754.
+3. **Chen, T., & Guestrin, C.** (2016). *XGBoost: A Scalable Tree Boosting System*. Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining.
+4. **Landrum, G.** (2024). *RDKit: Open-source cheminformatics toolkit*. [https://www.rdkit.org](https://www.rdkit.org).
+5. **Gaulton, A., et al.** (2017). *The ChEMBL database in 2017*. Nucleic Acids Research, 45(D1), D945–D954.
 
 ---
 
-## 🎨 Molecular Color Coding (CPK Standard)
-
-The 3D interactive viewer implements the industry-standard CPK color scheme:
-
-| Atom | Element | Color Code in Viewer |
-| :---: | :---: | :---: |
-| **C** | Carbon | Slate Grey (`#5A6065`) |
-| **H** | Hydrogen | Pure White (`#FFFFFF`) |
-| **O** | Oxygen | Crimson Red (`#E53935`) |
-| **N** | Nitrogen | Deep Blue (`#1E88E5`) |
-| **S** | Sulfur | Amber Yellow (`#FBC02D`) |
-| **F, Cl** | Halogens | Vibrant Green (`#43A047`) |
-
----
-
-
+*BioPredict is designed strictly for research, pharmaceutical screening, and educational applications.*
